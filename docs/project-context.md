@@ -113,6 +113,8 @@ The organizer/testing distribution:
 - Includes scoring logic and `ground_truth.json`.
 - The organizer README explicitly says this package should not normally be given to participants.
 
+Potential issue requiring verification: the email-by-ID route constructs a path from the requested ID without the explicit path-confinement check used by the attachment route, while Docker Compose mounts the complete organizer data directory. This has not been confirmed as an exploitable vulnerability. Before relying on this server outside isolated local evaluation, verify framework path normalization and restrict email IDs to the expected format or confine the resolved path to the inbox directory.
+
 The entire `local-data/` directory is Git-ignored. In particular, never commit, publish, or build the solution around the Docker bundle's ground-truth answer key.
 
 ## Agreed technical direction
@@ -238,7 +240,7 @@ Success means:
 
 The supplied scoreboard is useful but does not fully evaluate human-review quality, evidence clarity, or operational usability. Those require separate testing.
 
-The dataset scoring documentation states that the final score is weighted toward end-to-end defect detection, email classification macro-F1, and defect-field F1, with review handling reported as a separate reliability measure.
+The implemented final score is weighted as 50% end-to-end exact defect detection, 30% email-classification macro-F1, and 20% email-level defect F1. Field-level F1 is reported separately as a diagnostic and is not directly included in the weighted total. Review handling is also reported separately as a reliability measure.
 
 ## Proposed repository boundaries
 
