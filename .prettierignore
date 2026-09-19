@@ -1,0 +1,10 @@
+local-data/
+node_modules/
+.next/
+dist/
+coverage/
+apps/api/.venv/
+apps/api/openapi.json
+packages/contracts/src/generated/
+pnpm-lock.yaml
+docs/

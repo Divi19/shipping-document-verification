@@ -4,5 +4,26 @@
   "packageManager": "pnpm@10.15.1",
   "engines": {
     "node": ">=22.0.0"
+  },
+  "scripts": {
+    "api:openapi": "uv --directory apps/api run python -m scripts.export_openapi",
+    "build": "pnpm contracts:generate && pnpm --filter @sdoc/contracts build && pnpm --filter @sdoc/web build && pnpm build:api",
+    "build:api": "uv --directory apps/api run python -m compileall -q app",
+    "contracts:generate": "pnpm api:openapi && pnpm --filter @sdoc/contracts generate",
+    "dev:api": "uv --directory apps/api run uvicorn app.main:app --reload",
+    "dev:web": "pnpm --filter @sdoc/web dev",
+    "format": "prettier --write . && uv --directory apps/api run ruff format .",
+    "format:check": "prettier --check . && uv --directory apps/api run ruff format --check .",
+    "install:api": "uv --directory apps/api sync --all-groups",
+    "lint": "pnpm --filter @sdoc/contracts lint && pnpm --filter @sdoc/web lint && uv --directory apps/api run ruff check .",
+    "supabase:start": "npx --yes supabase@2.117.0 start",
+    "supabase:status": "npx --yes supabase@2.117.0 status",
+    "supabase:stop": "npx --yes supabase@2.117.0 stop",
+    "test": "pnpm --filter @sdoc/contracts test && pnpm --filter @sdoc/web test && uv --directory apps/api run pytest",
+    "typecheck": "pnpm contracts:generate && pnpm --filter @sdoc/contracts typecheck && pnpm --filter @sdoc/web typecheck && uv --directory apps/api run mypy",
+    "verify": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build"
+  },
+  "devDependencies": {
+    "prettier": "3.9.6"
   }
 }

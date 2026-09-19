@@ -9,7 +9,10 @@ export default async function Home() {
     <main>
       <h1>Shipping Document Verification</h1>
       <p>Frontend is running.</p>
-      <p>FastAPI health: {apiHealth?.status === "ok" ? "connected" : "unavailable"}</p>
+      <p>
+        FastAPI health:{" "}
+        {apiHealth?.status === "ok" ? "connected" : "unavailable"}
+      </p>
     </main>
   );
 }
