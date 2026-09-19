@@ -1,0 +1,8 @@
+{
+  "name": "shipping-document-verification",
+  "private": true,
+  "packageManager": "pnpm@10.15.1",
+  "engines": {
+    "node": ">=22.0.0"
+  }
+}
