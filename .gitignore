@@ -34,3 +34,6 @@ supabase/.env
 *.sqlite
 *.sqlite3
 .DS_Store
+
+sdoc-data/
+sdoc-hackathon-bundle.zip
