@@ -1,0 +1,7 @@
+# Local hackathon datasets and organizer-only evaluation materials
+/local-data/
+
+# Local secrets
+.env
+.env.*
+!.env.example
