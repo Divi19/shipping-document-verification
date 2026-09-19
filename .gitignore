@@ -24,6 +24,7 @@ __pycache__/
 htmlcov/
 
 apps/api/openapi.json
+apps/web/next-env.d.ts
 packages/contracts/src/generated/
 
 supabase/.branches/
