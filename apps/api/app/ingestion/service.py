@@ -235,12 +235,3 @@ def ingest_document(
 ) -> MarkdownDocument:
     """Convenience helper for the rest of the pipeline."""
     return get_document_service(config).ingest(source, filename=filename)
-
-
-def ingest_document(
-    source: str | bytes | bytearray | Path | object,
-    filename: Optional[str] = None,
-    config: Optional[DocumentIngestionConfig] = None,
-) -> MarkdownDocument:
-    """Convenience helper for the rest of the pipeline."""
-    return get_document_service(config).ingest(source, filename=filename)

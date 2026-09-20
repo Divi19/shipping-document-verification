@@ -1,6 +1,5 @@
 """Excel (XLSX) extractor."""
 
-import hashlib
 from pathlib import Path
 from typing import Optional
 
@@ -62,7 +61,7 @@ class XLSXExtractor(DocumentExtractor):
         rows = []
         headers = None
 
-        for i, row in enumerate(sheet.iter_rows(values_only=True)):
+        for row in sheet.iter_rows(values_only=True):
             # Skip completely empty rows
             if all(cell is None for cell in row):
                 continue
@@ -70,7 +69,9 @@ class XLSXExtractor(DocumentExtractor):
             # Convert all cells to strings
             str_row = [str(cell) if cell is not None else "" for cell in row]
 
-            if i == 0:
+            # The first *non-empty* row is the header; leading blank rows are
+            # common in these sheets and must not shift the data.
+            if headers is None:
                 headers = str_row
             else:
                 rows.append(str_row)

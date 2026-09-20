@@ -2,7 +2,6 @@
 
 import asyncio
 import base64
-import hashlib
 import io
 import logging
 from pathlib import Path

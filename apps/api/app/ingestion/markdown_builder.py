@@ -120,11 +120,11 @@ class MarkdownBuilder:
         return "\n\n".join(parts)
 
 
-def build_simple_markdown(extracted: ExtractedContent) -> str:
+def build_simple_markdown(extracted: ExtractedContent) -> MarkdownDocument:
     """Convenience function for simple markdown output."""
     builder = MarkdownBuilder(
         include_metadata=True,
         include_tables=True,
         include_images=False,  # Skip images for simple text output
     )
-    return builder.build(extracted).content
+    return builder.build(extracted)
