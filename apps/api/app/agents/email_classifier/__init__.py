@@ -1,5 +1,5 @@
-"""Email Classifier Agent."""
+"""Email classification agent."""
 
-from app.agents.email_classifier.classifier import EmailClassifier
+from .classifier import CategoryOracle, EmailClassifier
 
-__all__ = ["EmailClassifier"]
+__all__ = ["CategoryOracle", "EmailClassifier"]

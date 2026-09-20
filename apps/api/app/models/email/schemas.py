@@ -35,9 +35,21 @@ class EmailCategory(str, Enum):
     SPAM = "SPAM"
 
 
+class DecidedBy(str, Enum):
+    """Which mechanism produced a decision."""
+    RULE = "rule"
+    LLM = "llm"
+
+
 class ClassifiedEmail(BaseModel):
-    """Email with classification result."""
+    """Email with classification result.
+
+    ``confidence`` records how specific the matched rule is. It is a triage
+    signal for reviewers, never evidence: the pipeline decides certainty from
+    checks on extracted values, not from a self-reported score.
+    """
     email_id: str
     category: EmailCategory
     confidence: float
     reasoning: str
+    decided_by: DecidedBy = DecidedBy.RULE
