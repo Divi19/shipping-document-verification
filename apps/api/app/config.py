@@ -6,12 +6,20 @@ from pathlib import Path
 # Root of the extracted participant bundle (inbox/ + attachments/).
 # Overridable so the same code runs locally, in tests, and in the deployed service.
 DATA_DIR_ENV = "SDOC_DATA_DIR"
-DEFAULT_DATA_DIR = "local-data/sdoc-hackathon-bundle"
+
+# app/config.py -> app -> api -> apps -> repository root
+REPO_ROOT = Path(__file__).resolve().parents[3]
+
+# Datasets live in the gitignored local-data/ directory at the repository root,
+# so paths stay stable no matter which directory a script is run from.
+LOCAL_DATA = REPO_ROOT / "local-data"
+DEFAULT_DATA_DIR = LOCAL_DATA / "sdoc-hackathon-bundle"
 
 
 def data_dir() -> Path:
     """Return the configured dataset root as an absolute path."""
-    return Path(os.environ.get(DATA_DIR_ENV, DEFAULT_DATA_DIR)).resolve()
+    configured = os.environ.get(DATA_DIR_ENV)
+    return Path(configured).resolve() if configured else DEFAULT_DATA_DIR
 
 
 def inbox_dir() -> Path:

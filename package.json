@@ -7,6 +7,8 @@
   },
   "scripts": {
     "api:openapi": "uv --directory apps/api run python -m scripts.export_openapi",
+    "pipeline:run": "uv --directory apps/api run python -m scripts.run_pipeline",
+    "pipeline:score": "uv --directory apps/api run python -m scripts.score_submission",
     "build": "pnpm contracts:generate && pnpm --filter @sdoc/contracts build && pnpm --filter @sdoc/web build && pnpm build:api",
     "build:api": "uv --directory apps/api run python -m compileall -q app",
     "contracts:generate": "pnpm api:openapi && pnpm --filter @sdoc/contracts generate",
