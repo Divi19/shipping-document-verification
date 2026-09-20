@@ -1,4 +1,4 @@
-"""Email ingestion and parsing."""
+"""Email ingestion and parsing with document extraction."""
 
 import json
 import re
@@ -6,13 +6,22 @@ from pathlib import Path
 from typing import Optional
 
 from app.models.email.schemas import ParsedEmail, EmailAttachment
+from app.ingestion.service import get_document_service, DocumentIngestionService
+from app.ingestion.markdown_builder import MarkdownDocument
 
 
 class EmailParser:
-    """Parse raw email JSON into structured ParsedEmail."""
+    """Parse raw email JSON into structured ParsedEmail with document extraction."""
 
-    def __init__(self, inbox_dir: str):
+    def __init__(
+        self,
+        inbox_dir: str,
+        document_service: Optional[DocumentIngestionService] = None,
+        attachments_base_dir: Optional[str] = None,
+    ):
         self.inbox_dir = Path(inbox_dir)
+        self.document_service = document_service or get_document_service()
+        self.attachments_base_dir = Path(attachments_base_dir) if attachments_base_dir else self.inbox_dir.parent / "attachments"
 
     def parse_all(self) -> list[ParsedEmail]:
         """Parse all emails in the inbox directory."""
@@ -76,3 +85,50 @@ class EmailParser:
             ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         }
         return types.get(suffix, "application/octet-stream")
+
+    def extract_attachment_content(self, attachment: EmailAttachment) -> MarkdownDocument:
+        """
+        Extract and parse attachment content to markdown.
+
+        Args:
+            attachment: EmailAttachment to extract
+
+        Returns:
+            MarkdownDocument with extracted content
+        """
+        # Resolve full path
+        full_path = self.attachments_base_dir / attachment.path
+        if not full_path.exists():
+            # Try relative to inbox_dir
+            full_path = self.inbox_dir.parent / attachment.path
+
+        if not full_path.exists():
+            raise FileNotFoundError(f"Attachment not found: {attachment.path}")
+
+        return self.document_service.ingest_file(full_path)
+
+    def extract_all_attachments(self, email: ParsedEmail) -> dict[str, MarkdownDocument]:
+        """
+        Extract content from all attachments in an email.
+
+        Args:
+            email: ParsedEmail with attachments
+
+        Returns:
+            Dict mapping attachment filename to MarkdownDocument
+        """
+        results = {}
+        for attachment in email.attachments:
+            try:
+                results[attachment.filename] = self.extract_attachment_content(attachment)
+            except Exception as e:
+                # Log error but continue with other attachments
+                import logging
+                logging.getLogger(__name__).warning(
+                    f"Failed to extract {attachment.filename}: {e}"
+                )
+                results[attachment.filename] = MarkdownDocument(
+                    content=f"[Error extracting {attachment.filename}: {e}]",
+                    metadata={"error": str(e)},
+                )
+        return results
