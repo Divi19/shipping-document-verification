@@ -5,6 +5,7 @@ from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
 from pydantic import BaseModel
 
 from app.agents.email_classifier.classifier import EmailClassifier
+from app.api import cases_router
 from app.config import data_dir, inbox_dir, resolve_within
 from app.ingestion.parser import EmailParser
 from app.ingestion.service import (
@@ -20,6 +21,8 @@ app = FastAPI(
 )
 
 EMAIL_ID_PATTERN = re.compile(r"^email_\d{1,6}$")
+
+app.include_router(cases_router)
 
 
 # Document ingestion models
