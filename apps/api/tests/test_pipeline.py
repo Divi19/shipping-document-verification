@@ -183,7 +183,9 @@ class TestExtraction:
 
     def test_blank_label_does_not_borrow_the_next_field(self) -> None:
         """email_519 leaves the count blank; the weight line must not fill it in."""
-        text = "SHIPPING INSTRUCTION\nNo. of Containers or Packages:\nGross Weight (KGS): 70,572 KG\n"
+        text = (
+            "SHIPPING INSTRUCTION\nNo. of Containers or Packages:\nGross Weight (KGS): 70,572 KG\n"
+        )
         fields = extract_fields(text, "si.txt")
         count = fields[FieldName.CONTAINER_COUNT]
         assert not count.is_present
@@ -244,7 +246,9 @@ class TestComparison:
         assert by_field[FieldName.CONTAINER_COUNT].matches is True
 
     def test_missing_value_is_undecidable_not_a_mismatch(self) -> None:
-        si = extract_fields(SI_TEXT.replace("Gross Wt (kgs): 131,058 KG", "Gross Wt (kgs): N/A"), "si")
+        si = extract_fields(
+            SI_TEXT.replace("Gross Wt (kgs): 131,058 KG", "Gross Wt (kgs): N/A"), "si"
+        )
         comparisons = compare_documents(si, extract_fields(BL_TEXT, "bl"))
         weight = next(c for c in comparisons if c.field is FieldName.GROSS_WEIGHT_KG)
         assert weight.matches is None
@@ -323,13 +327,22 @@ class TestOrchestrator:
 
     def test_mismatch_case_reports_only_the_differing_fields(self, tmp_path: Path) -> None:
         paths = write_case(tmp_path, "email_004", SI_TEXT, BL_TEXT)
-        case = self.pipeline(tmp_path).run(make_email("email_004", "Attached are the SI and BL.", paths))
+        case = self.pipeline(tmp_path).run(
+            make_email("email_004", "Attached are the SI and BL.", paths)
+        )
         assert case.outcome is CaseOutcome.MISMATCH
         assert set(case.defect_fields) == {FieldName.CONSIGNEE, FieldName.NOTIFY_PARTY}
 
     def test_clean_case_is_verified(self, tmp_path: Path) -> None:
-        paths = write_case(tmp_path, "email_005", SI_TEXT, SI_TEXT.replace("SHIPPING INSTRUCTION", "BILL OF LADING (DRAFT)"))
-        case = self.pipeline(tmp_path).run(make_email("email_005", "Attached are the SI and BL.", paths))
+        paths = write_case(
+            tmp_path,
+            "email_005",
+            SI_TEXT,
+            SI_TEXT.replace("SHIPPING INSTRUCTION", "BILL OF LADING (DRAFT)"),
+        )
+        case = self.pipeline(tmp_path).run(
+            make_email("email_005", "Attached are the SI and BL.", paths)
+        )
         assert case.outcome is CaseOutcome.VERIFIED
         assert case.defect_fields == []
 
@@ -353,13 +366,17 @@ class TestOrchestrator:
     def test_invoice_in_place_of_the_bl_escalates(self, tmp_path: Path) -> None:
         invoice = "COMMERCIAL INVOICE\n====\nInvoice No.: 5250078266\nSeller: APRIL\n"
         paths = write_case(tmp_path, "email_501", SI_TEXT, invoice)
-        case = self.pipeline(tmp_path).run(make_email("email_501", "Attached are the SI and BL.", paths))
+        case = self.pipeline(tmp_path).run(
+            make_email("email_501", "Attached are the SI and BL.", paths)
+        )
         assert case.outcome is CaseOutcome.NEEDS_REVIEW
         assert case.review_reason is ReviewReason.WRONG_DOC_TYPE
 
     def test_unreadable_document_escalates_and_is_never_compared(self, tmp_path: Path) -> None:
         paths = write_case(tmp_path, "email_511", SI_TEXT, "   ")
-        case = self.pipeline(tmp_path).run(make_email("email_511", "Attached SI and draft BL.", paths))
+        case = self.pipeline(tmp_path).run(
+            make_email("email_511", "Attached SI and draft BL.", paths)
+        )
         assert case.outcome is CaseOutcome.NEEDS_REVIEW
         assert case.review_reason is ReviewReason.UNREADABLE
         assert case.comparisons == []
@@ -367,7 +384,9 @@ class TestOrchestrator:
     def test_blank_required_value_escalates_rather_than_mismatching(self, tmp_path: Path) -> None:
         si = SI_TEXT.replace("Gross Wt (kgs): 131,058 KG", "Gross Wt (kgs): N/A")
         paths = write_case(tmp_path, "email_516", si, BL_TEXT)
-        case = self.pipeline(tmp_path).run(make_email("email_516", "Attached are the SI and BL.", paths))
+        case = self.pipeline(tmp_path).run(
+            make_email("email_516", "Attached are the SI and BL.", paths)
+        )
         assert case.outcome is CaseOutcome.NEEDS_REVIEW
         assert case.review_reason is ReviewReason.MISSING_VALUE
 
@@ -385,7 +404,9 @@ class TestOrchestrator:
 
     def test_every_stage_is_recorded(self, tmp_path: Path) -> None:
         paths = write_case(tmp_path, "email_004", SI_TEXT, BL_TEXT)
-        case = self.pipeline(tmp_path).run(make_email("email_004", "Attached are the SI and BL.", paths))
+        case = self.pipeline(tmp_path).run(
+            make_email("email_004", "Attached are the SI and BL.", paths)
+        )
         stages = [attempt.stage for attempt in case.attempts]
         assert stages[0] == "classify"
         assert stages[-1] == "decide"
@@ -394,7 +415,9 @@ class TestOrchestrator:
     def test_failed_reads_stay_in_the_history(self, tmp_path: Path) -> None:
         paths = write_case(tmp_path, "email_511", SI_TEXT, "")
         (tmp_path / paths[1]).write_bytes(b"%PDF-1.5 broken")
-        case = self.pipeline(tmp_path).run(make_email("email_511", "Attached SI and draft BL.", paths))
+        case = self.pipeline(tmp_path).run(
+            make_email("email_511", "Attached SI and draft BL.", paths)
+        )
         failures = [a for a in case.attempts if a.stage == "read_document" and not a.ok]
         assert failures, "a failed read must be recorded, not silently dropped"
 
@@ -447,3 +470,53 @@ class TestSubmission:
         pipeline = Pipeline(dataset_root=tmp_path, readers=(PlainTextReader(),))
         case = pipeline.run(make_email("email_061", "Please send the draft BL.", []))
         assert json.loads(json.dumps(build_submission([case])))
+
+
+class TestLayoutDifferencesAreNotDefects:
+    """Regressions from running the real Excel/Word pairs.
+
+    Each of these produced a false discrepancy, which is exactly the failure
+    the accuracy target is about: the documents agreed, the layout did not.
+    """
+
+    def test_escaped_pipe_does_not_truncate_a_cell(self) -> None:
+        """Markdown escapes a literal pipe; splitting on it cut values in half."""
+        text = "BL INSTRUCTION\n| Consignee | AL GURG STATIONERY LLC \| P.O. BOX 5069 |\n"
+        consignee = extract_fields(text, "si.xlsx")[FieldName.CONSIGNEE]
+        assert consignee.normalized == "AL GURG STATIONERY LLC P O BOX 5069"
+
+    def test_address_on_one_side_only_is_not_a_discrepancy(self) -> None:
+        """The Word BL keeps name and address in one cell; the Excel SI does not."""
+        si = extract_fields("BL INSTRUCTION\n| Consignee | AL GURG STATIONERY LLC |\n", "si.xlsx")
+        bl = extract_fields(
+            "BILL OF LADING (DRAFT)\n"
+            "| Consignee | AL GURG STATIONERY LLC P.O. BOX 5069 DUBAI, UAE |\n",
+            "bl.docx",
+        )
+        consignee = next(c for c in compare_documents(si, bl) if c.field is FieldName.CONSIGNEE)
+        assert consignee.matches is True
+        assert consignee.note == "same party, address included on one side"
+
+    def test_a_different_party_is_still_a_discrepancy(self) -> None:
+        si = extract_fields("BL INSTRUCTION\n| Consignee | EAST BRIGHT FZ-LLC |\n", "si.xlsx")
+        bl = extract_fields(
+            "BILL OF LADING (DRAFT)\n| Consignee | UAB NOVAKOPA P.O. BOX 5069 |\n", "bl.docx"
+        )
+        consignee = next(c for c in compare_documents(si, bl) if c.field is FieldName.CONSIGNEE)
+        assert consignee.matches is False
+
+    def test_a_metadata_header_is_not_document_content(self) -> None:
+        """A failed PDF extraction returns only its metadata block.
+
+        Counting that as text made an unreadable scan look like a readable
+        document with no fields, which escalated for the wrong reason.
+        """
+        metadata_only = (
+            "---\n"
+            "source_file: email_313_SI.pdf\n"
+            "content_type: application/pdf\n"
+            "extractor: PDFExtractor\n"
+            "error: All extraction methods failed\n"
+            "---"
+        )
+        assert not is_readable(metadata_only)

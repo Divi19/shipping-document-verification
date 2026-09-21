@@ -124,3 +124,20 @@ def parse_weight_kg(value: str) -> float | None:
 def format_number(amount: float) -> str:
     """Render a parsed number without trailing ``.0`` noise."""
     return str(int(amount)) if amount.is_integer() else f"{amount:g}"
+
+
+def party_names_agree(first: str, second: str) -> bool:
+    """Whether two party values name the same party.
+
+    Layouts differ in how much of the block belongs to the field: a Word BL
+    keeps the name and its address in one cell, while the matching Excel SI
+    holds the name alone. When one value is the other followed by address
+    text, that is a layout difference, not a change of party - an amended
+    party replaces the name outright, so it never shares this prefix.
+    """
+    if first == second:
+        return True
+    shorter, longer = sorted((first, second), key=len)
+    if len(shorter) < 6:
+        return False
+    return longer.startswith(f"{shorter} ")

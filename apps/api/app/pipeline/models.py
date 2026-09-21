@@ -7,7 +7,7 @@ report) can always see why the system concluded what it did.
 """
 
 from datetime import UTC, datetime
-from enum import Enum
+from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
@@ -18,7 +18,7 @@ def _now() -> datetime:
     return datetime.now(UTC)
 
 
-class FieldName(str, Enum):
+class FieldName(StrEnum):
     """The seven fields compared between the SI and the draft BL."""
 
     SHIPPER = "shipper"
@@ -33,7 +33,7 @@ class FieldName(str, Enum):
 COMPARED_FIELDS: tuple[FieldName, ...] = tuple(FieldName)
 
 
-class DocumentRole(str, Enum):
+class DocumentRole(StrEnum):
     """What a document turned out to be once it was read."""
 
     SHIPPING_INSTRUCTION = "shipping_instruction"
@@ -42,7 +42,7 @@ class DocumentRole(str, Enum):
     UNKNOWN = "unknown"
 
 
-class ReviewReason(str, Enum):
+class ReviewReason(StrEnum):
     """Why a case could not be decided automatically."""
 
     WRONG_DOC_TYPE = "wrong_doc_type"
@@ -51,7 +51,7 @@ class ReviewReason(str, Enum):
     MISSING_VALUE = "missing_value"
 
 
-class CaseOutcome(str, Enum):
+class CaseOutcome(StrEnum):
     """The internal outcome - richer than the three submission statuses.
 
     ``AWAITING_DOCUMENTS`` is deliberately distinct from ``VERIFIED``: a request
@@ -125,7 +125,7 @@ class StageAttempt(BaseModel):
     at: datetime = Field(default_factory=_now)
 
 
-class ReviewAction(str, Enum):
+class ReviewAction(StrEnum):
     CONFIRMED = "confirmed"
     CORRECTED = "corrected"
     UNABLE_TO_VERIFY = "unable_to_verify"

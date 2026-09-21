@@ -11,6 +11,7 @@ import re
 
 from .models import DocumentRead, DocumentRole
 from .normalize import strip_cjk
+from .readers import strip_front_matter
 
 # Checked in order. The first pattern that matches the document header wins.
 _ROLE_PATTERNS: tuple[tuple[re.Pattern[str], DocumentRole], ...] = (
@@ -64,7 +65,7 @@ def is_readable(text: str, minimum_characters: int = 40) -> bool:
     An empty file, a truncated PDF and an image-only scan all arrive here as
     (almost) no text. That is an escalation, never an empty comparison.
     """
-    return len(text.strip()) >= minimum_characters
+    return len(strip_front_matter(text).strip()) >= minimum_characters
 
 
 def describe(document: DocumentRead) -> str:

@@ -113,9 +113,7 @@ def list_cases(
 
 
 @router.get("/{email_id}/submission", response_model=dict)
-def case_submission_entry(
-    email_id: str, store: CaseStore = Depends(get_store)
-) -> SubmissionEntry:
+def case_submission_entry(email_id: str, store: CaseStore = Depends(get_store)) -> SubmissionEntry:
     """The evaluation-shaped entry for one case."""
     case = store.get(email_id)
     if case is None:

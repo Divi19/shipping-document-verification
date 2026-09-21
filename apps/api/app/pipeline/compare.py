@@ -9,7 +9,9 @@ contradictory. That is uncertainty, not a discrepancy, and it must never be
 reported as a mismatch.
 """
 
+from .fields import PARTY_FIELDS
 from .models import COMPARED_FIELDS, FieldComparison, FieldName, FieldValue
+from .normalize import party_names_agree
 
 
 def compare_field(si: FieldValue, bl: FieldValue) -> FieldComparison:
@@ -23,6 +25,19 @@ def compare_field(si: FieldValue, bl: FieldValue) -> FieldComparison:
             bl=bl,
             matches=None,
             note=f"not decidable: {missing} value unavailable ({note or 'not found'})",
+        )
+
+    if si.field in PARTY_FIELDS:
+        matches = party_names_agree(si.normalized or "", bl.normalized or "")
+        note = (
+            None if si.normalized == bl.normalized else "same party, address included on one side"
+        )
+        return FieldComparison(
+            field=si.field,
+            si=si,
+            bl=bl,
+            matches=matches,
+            note=note if matches else None,
         )
 
     matches = si.normalized == bl.normalized

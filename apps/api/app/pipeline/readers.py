@@ -21,6 +21,14 @@ class ReaderError(RuntimeError):
     """A reader could not produce usable text from a file."""
 
 
+def strip_front_matter(text: str) -> str:
+    """Drop a leading ``---`` metadata block so it never counts as content."""
+    if not text.startswith("---"):
+        return text
+    _, separator, body = text.partition("\n---")
+    return body if separator else text
+
+
 @runtime_checkable
 class DocumentReader(Protocol):
     """Anything that can turn a file into text.
@@ -82,7 +90,14 @@ class IngestionServiceReader:
         except Exception as exc:  # noqa: BLE001 - any reader failure is a ReaderError
             raise ReaderError(f"{path.name}: {exc}") from exc
 
-        if not document.content.strip():
+        # The service reports a failed extraction in metadata and still returns a
+        # document whose body is only the metadata header. That is a failure, and
+        # it must not reach the pipeline looking like a readable document.
+        failure = document.metadata.get("error")
+        if failure:
+            raise ReaderError(f"{path.name}: {failure}")
+
+        if not strip_front_matter(document.content).strip():
             raise ReaderError(f"{path.name}: no text extracted (scan or damaged file)")
         return document.content
 

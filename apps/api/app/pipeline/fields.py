@@ -13,6 +13,7 @@ came from and the text as written, so a reviewer never has to take the
 pipeline's word for it.
 """
 
+import re
 from collections.abc import Iterator
 from dataclasses import dataclass
 
@@ -95,11 +96,18 @@ def match_field(label: str) -> FieldName | None:
     return _LABEL_LOOKUP.get(normalize_label(label))
 
 
+# A table cell escapes a literal pipe as "\|"; only unescaped pipes separate
+# cells. Splitting on every pipe truncated any value containing one.
+_UNESCAPED_PIPE = re.compile(r"(?<!\\)\|")
+
+
 def _split_markdown_row(line: str) -> tuple[str, str] | None:
     stripped = line.strip()
     if not stripped.startswith("|"):
         return None
-    cells = [cell.strip() for cell in stripped.strip("|").split("|")]
+    cells = [
+        cell.strip().replace("\\|", "|") for cell in _UNESCAPED_PIPE.split(stripped.strip("|"))
+    ]
     if len(cells) < 2 or set("".join(cells)) <= {"-", " "}:
         return None
     value = next((cell for cell in cells[1:] if cell), "")

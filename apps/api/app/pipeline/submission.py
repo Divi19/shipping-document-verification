@@ -18,14 +18,14 @@ told that seven fields were verified when none were read.
 
 import json
 from collections.abc import Iterable, Sequence
-from enum import Enum
+from enum import StrEnum
 from pathlib import Path
 from typing import TypedDict
 
 from .models import CaseOutcome, CaseRecord
 
 
-class SubmissionStatus(str, Enum):
+class SubmissionStatus(StrEnum):
     OK = "OK"
     MISMATCH = "MISMATCH"
     NEEDS_REVIEW = "NEEDS_REVIEW"
