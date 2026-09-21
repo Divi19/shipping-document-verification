@@ -127,9 +127,52 @@ class StageAttempt(BaseModel):
 
 
 class ReviewAction(StrEnum):
+    """What a reviewer can decide about a queued case."""
+
     CONFIRMED = "confirmed"
     CORRECTED = "corrected"
+    INFORMATION_REQUESTED = "information_requested"
     UNABLE_TO_VERIFY = "unable_to_verify"
+
+
+class ReviewStatus(StrEnum):
+    """Where a case stands in the human review queue."""
+
+    NOT_REQUIRED = "not_required"
+    PENDING = "pending"
+    AWAITING_INFORMATION = "awaiting_information"
+    RESOLVED = "resolved"
+
+
+class ReviewPriority(StrEnum):
+    """How soon a reviewer should pick up a queued case."""
+
+    HIGH = "high"
+    NORMAL = "normal"
+    LOW = "low"
+
+
+class ReviewTeam(StrEnum):
+    """Who owns a queued case."""
+
+    DOCUMENT_INTAKE = "document_intake"  # the fix is obtaining the right, readable file
+    FIELD_VERIFICATION = "field_verification"  # the fix is reading values from the source
+
+
+class DocumentSide(StrEnum):
+    """Which document of the pair a value belongs to."""
+
+    SI = "si"
+    BL = "bl"
+
+
+class ValueCorrection(BaseModel):
+    """One value a reviewer read from a source document."""
+
+    field: FieldName
+    side: DocumentSide
+    value: str
+    previous: str | None = None  # the extracted raw value this replaces
 
 
 class ReviewDecision(BaseModel):
@@ -138,14 +181,51 @@ class ReviewDecision(BaseModel):
     reviewer: str
     action: ReviewAction
     note: str | None = None
-    corrected_fields: list[FieldName] = Field(default_factory=list)
+    corrections: list[ValueCorrection] = Field(default_factory=list)
     at: datetime = Field(default_factory=_now)
 
 
+class ReviewResolution(BaseModel):
+    """The result a reviewer's decision produced.
+
+    It sits beside the automated result and never replaces it on the record.
+    """
+
+    outcome: CaseOutcome
+    review_reason: ReviewReason | None = None
+    comparisons: list[FieldComparison] = Field(default_factory=list)
+    action: ReviewAction
+    reviewer: str
+    at: datetime = Field(default_factory=_now)
+
+
+class ReviewTicket(BaseModel):
+    """A case in the human review queue: why it is there, who owns it, what was decided."""
+
+    status: ReviewStatus = ReviewStatus.PENDING
+    reason: ReviewReason | None = None
+    failed_checks: list[str] = Field(default_factory=list)
+    summary: str
+    priority: ReviewPriority
+    team: ReviewTeam
+    questionable_fields: list[FieldName] = Field(default_factory=list)
+    recommended_action: ReviewAction
+    decisions: list[ReviewDecision] = Field(default_factory=list)
+    resolution: ReviewResolution | None = None
+    opened_at: datetime = Field(default_factory=_now)
+    closed_at: datetime | None = None
+
+
 class CaseRecord(BaseModel):
-    """Everything known about one email."""
+    """Everything known about one email.
+
+    ``outcome``, ``review_reason`` and ``comparisons`` are the automated result.
+    A reviewer's resolution is kept on ``review``; the ``final_*`` properties
+    return whichever result currently stands.
+    """
 
     email_id: str
+    subject: str = ""
     category: EmailCategory
     outcome: CaseOutcome
     review_reason: ReviewReason | None = None
@@ -153,7 +233,7 @@ class CaseRecord(BaseModel):
     comparisons: list[FieldComparison] = Field(default_factory=list)
     attempts: list[StageAttempt] = Field(default_factory=list)
     classification_reasoning: str = ""
-    review: ReviewDecision | None = None
+    review: ReviewTicket | None = None
     created_at: datetime = Field(default_factory=_now)
     updated_at: datetime = Field(default_factory=_now)
 
@@ -163,6 +243,42 @@ class CaseRecord(BaseModel):
         if self.outcome is not CaseOutcome.MISMATCH:
             return []
         return [c.field for c in self.comparisons if c.is_defect]
+
+    @property
+    def resolution(self) -> ReviewResolution | None:
+        """The reviewer's resolution, when the case has one."""
+        return self.review.resolution if self.review is not None else None
+
+    @property
+    def final_outcome(self) -> CaseOutcome:
+        """The reviewer's outcome when there is one, otherwise the automated one."""
+        return self.resolution.outcome if self.resolution else self.outcome
+
+    @property
+    def final_review_reason(self) -> ReviewReason | None:
+        """The review reason that goes with ``final_outcome``."""
+        return self.resolution.review_reason if self.resolution else self.review_reason
+
+    @property
+    def final_comparisons(self) -> list[FieldComparison]:
+        """The comparisons that go with ``final_outcome``."""
+        return self.resolution.comparisons if self.resolution else self.comparisons
+
+    @property
+    def final_defect_fields(self) -> list[FieldName]:
+        """Fields that differ in the result that currently stands."""
+        if self.final_outcome is not CaseOutcome.MISMATCH:
+            return []
+        return [c.field for c in self.final_comparisons if c.is_defect]
+
+    @property
+    def review_status(self) -> ReviewStatus:
+        """The queue status; a NEEDS_REVIEW case without a ticket still counts as pending."""
+        if self.review is not None:
+            return self.review.status
+        if self.outcome is CaseOutcome.NEEDS_REVIEW:
+            return ReviewStatus.PENDING
+        return ReviewStatus.NOT_REQUIRED
 
     def record_attempt(self, stage: str, ok: bool, detail: str) -> None:
         attempt = sum(1 for a in self.attempts if a.stage == stage) + 1

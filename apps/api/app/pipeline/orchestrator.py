@@ -11,6 +11,9 @@ Two rules it enforces:
 * Retries are bounded and only happen where another attempt can plausibly help:
   a second reader for a document that failed to parse. A missing attachment is
   never retried, because nothing about it will change.
+
+The last stage is exception triage: a case that needs a person leaves with a
+review ticket, so it reaches the review queue the moment it is stored.
 """
 
 from collections.abc import Sequence
@@ -26,6 +29,7 @@ from .documents import detect_role, is_readable
 from .extraction_adapter import extract_verified_fields
 from .models import CaseOutcome, CaseRecord, DocumentRead, DocumentRole, FieldName, FieldValue
 from .readers import DocumentReader, ReaderError, default_readers, readers_for
+from .review import STAGE_TRIAGE, triage
 
 
 class FieldResolver(Protocol):
@@ -72,6 +76,7 @@ class Pipeline:
         classified = self.classifier.classify(email)
         case = CaseRecord(
             email_id=email.email_id,
+            subject=email.subject,
             category=classified.category,
             outcome=CaseOutcome.NOT_APPLICABLE,
             classification_reasoning=classified.reasoning,
@@ -234,4 +239,13 @@ class Pipeline:
             ok=outcome is not CaseOutcome.NEEDS_REVIEW,
             detail=f"{outcome.value}" + (f" ({reason.value})" if reason else ""),
         )
+
+        case.review = triage(case)
+        if case.review is not None:
+            case.record_attempt(
+                STAGE_TRIAGE,
+                ok=True,
+                detail=f"queued for {case.review.team.value} "
+                f"({case.review.priority.value} priority): {case.review.summary}",
+            )
         return case

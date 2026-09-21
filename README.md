@@ -98,6 +98,15 @@ For a quick validation, open <http://localhost:3000> and run these included samp
 3. `email_512_SI.pdf` — image-only scan for testing local OCR/fallback behaviour.
 4. `email_511_BL.pdf` — deliberately corrupt edge case; expected to report `unreadable`.
 
+The **Human review queue** at <http://localhost:3000/review> handles the cases
+the pipeline cannot decide. Click **Process inbox** to run every email, then open
+a case to see the original email, both documents, the fields in question with
+their evidence, and the escalation reason. Confirm, correct values, request
+information, or mark the case unable to verify; the final report updates at
+once. `email_059` is a good first case: the BL gross weight was not read, and
+correcting it to `131,322 KG` resolves the case as verified. See
+[docs/pipeline.md](docs/pipeline.md#human-review) for the rules.
+
 If the page reports `FastAPI unavailable`, ensure `pnpm dev:api` is running in a separate
 terminal. If port 8000 is already in use, stop the older API process with `Ctrl+C` before
 starting it again.

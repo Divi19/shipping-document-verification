@@ -1,6 +1,6 @@
 import type { HealthResponse } from "@sdoc/contracts";
 
-const apiBaseUrl = process.env.API_BASE_URL ?? "http://localhost:8000";
+export const apiBaseUrl = process.env.API_BASE_URL ?? "http://localhost:8000";
 
 export async function getApiHealth(): Promise<HealthResponse | null> {
   try {

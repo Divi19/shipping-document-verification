@@ -13,12 +13,14 @@ email record
   -> normalise           labels, names, ports, numbers, units
   -> compare             deterministic, SI is the reference
   -> decide              one documented rule order
+  -> triage              a case that needs a person gets a review ticket
   -> persist + escalate  NEEDS_REVIEW is recorded immediately, not held back
 ```
 
 Everything lands on one `CaseRecord` (`app/pipeline/models.py`): the category,
 the documents read, the seven `FieldComparison`s with both values and their
-evidence, the outcome, and every stage attempt including the failed ones.
+evidence, the outcome, the review ticket, and every stage attempt including the
+failed ones.
 
 ## Outcomes
 
@@ -54,6 +56,59 @@ Escalation reasons are `wrong_doc_type`, `missing_attachment`, `unreadable` and
   are +/-500-2000 kg, so picking a row produces a plausible false mismatch.
 - **Retries must be able to help.** Another reader for a file that failed to
   parse, yes. A missing attachment, never.
+
+## Human review
+
+`app/pipeline/review.py` is the exception triage and the review queue. A case is
+queued when its outcome is `NEEDS_REVIEW`, or when a decided result fails the
+quality gate. Triage gives it a ticket with the reason in plain words, the
+fields in question, a team and a priority:
+
+| Priority | When |
+|---|---|
+| `high` | a discrepancy is already confirmed on another field, so the BL needs amending anyway |
+| `normal` | the case cannot progress without a person |
+| `low` | the result is decided and only failed the quality gate |
+
+`missing_attachment`, `wrong_doc_type` and `unreadable` go to **document
+intake** (the fix is the right file); `missing_value` and quality-gate
+failures go to **field verification** (the fix is reading the source).
+
+A reviewer decides one of four things:
+
+| Decision | Effect |
+|---|---|
+| `confirmed` | releases the automated result; only possible when all seven fields were decided |
+| `corrected` | replaces values with ones read from the source, then compares again |
+| `information_requested` | the case waits in *awaiting information*; a note is required |
+| `unable_to_verify` | closes the case without a result; a note is required |
+
+Rules that keep it auditable:
+
+- **The automated result is never overwritten.** `outcome`, `review_reason` and
+  `comparisons` stay as the pipeline left them; the decision adds a
+  `ReviewResolution` beside them. Reports and the submission use the
+  `final_*` properties and also show the automated outcome.
+- **Corrections follow extraction's rules.** A corrected value goes through
+  `fields.normalize_value` and `compare.compare_documents`, so `TBA` is refused
+  and a reviewer cannot make two values agree by retyping them. A decision that
+  leaves any field undecidable is refused whole.
+- **Reprocessing keeps history.** `POST /cases/{id}/run` is the controlled
+  retry: earlier attempts stay in the trail, and a ticket that holds a human
+  decision moves to the new record unchanged.
+
+The queue lives in the same `CaseStore` as the cases. The in-memory store loses
+it on restart; a persistent store implements the same protocol.
+
+| Endpoint | Purpose |
+|---|---|
+| `POST /cases/run-inbox` | process every unprocessed email and fill the queue |
+| `GET /review-queue` | tickets, most urgent first, with counts per status |
+| `GET /review-queue/{id}` | the review package: email, documents, fields, evidence, history, report |
+| `POST /review-queue/{id}/decision` | record a decision; returns the updated package (409 closed, 422 invalid) |
+| `GET /review-queue/{id}/attachments/{file}` | the original attachment, for reading the source |
+
+The interface is the `/review` page in `apps/web`.
 
 ## Where AI is used
 

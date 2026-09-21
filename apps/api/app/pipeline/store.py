@@ -1,8 +1,9 @@
 """Where case records live between processing and review.
 
 A case that needs a human is written here the moment it is decided, with its
-reason and evidence - not held back until someone answers. The reviewer's
-decision updates the same record.
+reason, evidence and review ticket - not held back until someone answers. The
+reviewer's decision (``app.pipeline.review.apply_decision``) updates the same
+record.
 
 The in-memory implementation is enough for the prototype and for tests. A
 Supabase-backed store implements the same protocol; nothing else changes.
@@ -10,7 +11,7 @@ Supabase-backed store implements the same protocol; nothing else changes.
 
 from typing import Protocol
 
-from .models import CaseOutcome, CaseRecord, ReviewDecision
+from .models import CaseOutcome, CaseRecord
 
 
 class CaseStore(Protocol):
@@ -47,19 +48,3 @@ class InMemoryCaseStore:
 
     def clear(self) -> None:
         self._cases.clear()
-
-
-def apply_review(case: CaseRecord, decision: ReviewDecision) -> CaseRecord:
-    """Record a reviewer's decision against a case.
-
-    The decision is added to the record; the automated outcome is never
-    overwritten silently. A confirmed escalation keeps its reason, and a
-    correction moves the case out of the queue with the reviewer named.
-    """
-    case.review = decision
-    case.record_attempt(
-        "human_review",
-        ok=True,
-        detail=f"{decision.action.value} by {decision.reviewer}",
-    )
-    return case
