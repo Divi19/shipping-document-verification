@@ -5,6 +5,7 @@ from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 
 from app.agents.email_classifier.classifier import EmailClassifier
+from app.api import cases_router
 from app.config import resolve_data_dir
 from app.field_extraction import TextFieldExtractor, gemini_semantic_fallback_from_env
 from app.ingestion.extractors import ContentType, IngestionStatus
@@ -24,6 +25,7 @@ app = FastAPI(
     title="Shipping Document Verification API",
     version="0.1.0",
 )
+app.include_router(cases_router)
 
 
 # Document ingestion models

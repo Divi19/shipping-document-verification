@@ -7,6 +7,7 @@ from app.field_extraction import TextFieldExtractor
 from app.ingestion.extractors import TextExtractor
 from app.models.extraction import ComparisonField, DocumentRole
 from app.models.verification import (
+    DocumentNormalizationResult,
     NormalizationIssue,
     NormalizationRule,
     NormalizedIntegerValue,
@@ -19,7 +20,10 @@ from app.verification import TextEvidenceVerifier
 CORPUS_DIR = Path(__file__).parent / "fixtures" / "txt_extraction"
 
 
-def _normalize(text: str, role: DocumentRole = DocumentRole.SHIPPING_INSTRUCTION):
+def _normalize(
+    text: str,
+    role: DocumentRole = DocumentRole.SHIPPING_INSTRUCTION,
+) -> DocumentNormalizationResult:
     document = TextExtractor().extract_bytes(text.encode(), "sample.txt")
     extracted = TextFieldExtractor().extract(document, role)
     verified = TextEvidenceVerifier().verify(document, extracted)

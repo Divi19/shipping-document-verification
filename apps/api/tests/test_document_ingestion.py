@@ -41,7 +41,9 @@ class TestTextExtractor:
         assert "Plain text content" in result.text
 
 
-def test_gemini_pdf_fallback_can_be_enabled_from_environment(monkeypatch) -> None:
+def test_gemini_pdf_fallback_can_be_enabled_from_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setenv("GEMINI_ENABLE_FALLBACK", "true")
     monkeypatch.setenv("GEMINI_API_KEY", "test-key")
     monkeypatch.setenv("GEMINI_MODEL", "test-model")
@@ -52,7 +54,7 @@ def test_gemini_pdf_fallback_can_be_enabled_from_environment(monkeypatch) -> Non
     assert config.gemini_model == "test-model"
 
 
-def test_gemini_environment_flag_requires_a_key(monkeypatch) -> None:
+def test_gemini_environment_flag_requires_a_key(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("GEMINI_ENABLE_FALLBACK", "true")
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
 

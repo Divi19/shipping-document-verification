@@ -1,9 +1,12 @@
 """Document extractors package."""
 
+from typing import Any
+
 from .base import (
     ContentType,
     DocumentExtractor,
     ExtractedContent,
+    ExtractionError,
     Image,
     IngestionStatus,
     Table,
@@ -15,6 +18,7 @@ from .xlsx_extractor import XLSXExtractor
 
 __all__ = [
     "ContentType",
+    "ExtractionError",
     "DocumentExtractor",
     "ExtractedContent",
     "IngestionStatus",
@@ -27,9 +31,9 @@ __all__ = [
 ]
 
 
-def get_extractor(content_type: ContentType, **kwargs) -> DocumentExtractor:
+def get_extractor(content_type: ContentType, **kwargs: Any) -> DocumentExtractor:
     """Factory function to get the appropriate extractor for a content type."""
-    extractors = {
+    extractors: dict[ContentType, type[DocumentExtractor]] = {
         ContentType.PDF: PDFExtractor,
         ContentType.DOCX: DocxExtractor,
         ContentType.XLSX: XLSXExtractor,

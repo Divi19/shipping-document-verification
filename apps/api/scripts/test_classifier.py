@@ -4,17 +4,21 @@
 import json
 import sys
 from pathlib import Path
+from typing import Any
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from app.agents.email_classifier.classifier import EmailClassifier  # noqa: E402
-from app.config import resolve_data_dir  # noqa: E402
-from app.ingestion.parser import EmailParser  # noqa: E402
-from app.models.email.schemas import EmailCategory  # noqa: E402
+from app.agents.email_classifier.classifier import EmailClassifier
+from app.ingestion.parser import EmailParser
+from app.models.email.schemas import EmailCategory
 
 
 def main() -> None:
-    inbox_path = resolve_data_dir(sys.argv[1] if len(sys.argv) > 1 else None)
+    # Default to project root sdoc-data (two levels up from apps/api)
+    project_root = Path(__file__).parent.parent.parent.parent
+    inbox_path = project_root / "sdoc-data"
+    if len(sys.argv) > 1:
+        inbox_path = Path(sys.argv[1])
 
     parser = EmailParser(str(inbox_path / "inbox"))
     emails = parser.parse_all()
@@ -47,7 +51,7 @@ def main() -> None:
                 print(f"    confidence={r.confidence:.2f} reason={r.reasoning}")
 
     # Export to JSON (submission format)
-    submission: dict[str, dict[str, object]] = {}
+    submission: dict[str, dict[str, Any]] = {}
     for r in results:
         submission[r.email_id] = {
             "category": r.category.value,

@@ -6,7 +6,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
-import diskcache  # type: ignore[import-untyped]
+import diskcache
 
 from .extractors.base import ContentType, ExtractedContent, Image, IngestionStatus, Table
 

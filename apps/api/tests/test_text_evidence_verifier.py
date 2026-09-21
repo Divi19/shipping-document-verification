@@ -1,13 +1,13 @@
 """Tests for TXT evidence and candidate consistency verification."""
 
 from app.field_extraction import TextFieldExtractor
-from app.ingestion.extractors import TextExtractor
-from app.models.extraction import ComparisonField, DocumentRole
+from app.ingestion.extractors import ExtractedContent, TextExtractor
+from app.models.extraction import ComparisonField, DocumentFieldCandidates, DocumentRole
 from app.models.verification import VerificationIssue, VerificationOutcome
 from app.verification import TextEvidenceVerifier, verify_text_candidates
 
 
-def _extract(text: str):
+def _extract(text: str) -> tuple[ExtractedContent, DocumentFieldCandidates]:
     document = TextExtractor().extract_bytes(text.encode(), "sample_si.txt")
     candidates = TextFieldExtractor().extract(document, DocumentRole.SHIPPING_INSTRUCTION)
     return document, candidates

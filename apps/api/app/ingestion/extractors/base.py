@@ -25,6 +25,10 @@ class IngestionStatus(StrEnum):
     FAILED = "failed"
 
 
+class ExtractionError(RuntimeError):
+    """An extractor could not produce usable document content."""
+
+
 @dataclass
 class Table:
     """Represents an extracted table."""

@@ -1,15 +1,13 @@
 """DOCX (Word) document extractor."""
 
-import hashlib
 import io
 from pathlib import Path
-from typing import Optional
 
 from docx import Document
+from docx.document import Document as DocxDocument
 from docx.table import Table as DocxTable
-from docx.text.paragraph import Paragraph
 
-from .base import ContentType, DocumentExtractor, ExtractedContent, Table, Image
+from .base import ContentType, DocumentExtractor, ExtractedContent, Image, Table
 
 
 class DocxExtractor(DocumentExtractor):
@@ -19,7 +17,7 @@ class DocxExtractor(DocumentExtractor):
 
     def extract(self, file_path: Path) -> ExtractedContent:
         """Extract content from a DOCX file."""
-        doc = Document(file_path)
+        doc = Document(str(file_path))
         return self._extract_document(doc, file_path)
 
     def extract_bytes(self, content: bytes, filename: str) -> ExtractedContent:
@@ -27,18 +25,20 @@ class DocxExtractor(DocumentExtractor):
         doc = Document(io.BytesIO(content))
         return self._extract_document(doc, Path(filename))
 
-    def _extract_document(self, doc: Document, source: Path) -> ExtractedContent:
+    def _extract_document(self, doc: DocxDocument, source: Path) -> ExtractedContent:
         """Extract all content from a Word document."""
         text_parts = []
         tables = []
         images = []
-        metadata = {"paragraph_count": 0, "table_count": 0, "image_count": 0}
+        paragraph_count = 0
+        table_count = 0
+        image_count = 0
 
         # Extract paragraphs
         for para in doc.paragraphs:
             if para.text.strip():
                 text_parts.append(para.text)
-                metadata["paragraph_count"] += 1
+                paragraph_count += 1
 
         # Extract tables
         for i, table in enumerate(doc.tables):
@@ -47,7 +47,7 @@ class DocxExtractor(DocumentExtractor):
                 tables.append(extracted_table)
                 text_parts.append(f"## Table {i + 1}")
                 text_parts.append(extracted_table.to_markdown())
-                metadata["table_count"] += 1
+                table_count += 1
 
         # Extract images (from relationships)
         for rel in doc.part.rels.values():
@@ -60,7 +60,7 @@ class DocxExtractor(DocumentExtractor):
                         alt_text=f"Image from {source.name}",
                     )
                     images.append(image)
-                    metadata["image_count"] += 1
+                    image_count += 1
                 except Exception:
                     # Skip images that can't be extracted
                     pass
@@ -71,22 +71,27 @@ class DocxExtractor(DocumentExtractor):
             images=images,
             content_type=ContentType.DOCX,
             source_filename=source.name,
-            metadata=metadata,
+            metadata={
+                "paragraph_count": paragraph_count,
+                "table_count": table_count,
+                "image_count": image_count,
+            },
         )
 
-    def _extract_table(self, table: DocxTable, table_index: int) -> Optional[Table]:
+    def _extract_table(self, table: DocxTable, table_index: int) -> Table | None:
         """Extract a Word table as a Table object."""
         rows = []
         headers = None
 
-        for i, row in enumerate(table.rows):
+        for row in table.rows:
             cells = [cell.text.strip() for cell in row.cells]
 
             # Skip completely empty rows
             if not any(cells):
                 continue
 
-            if i == 0:
+            # The first *non-empty* row is the header (see xlsx extractor).
+            if headers is None:
                 headers = cells
             else:
                 rows.append(cells)

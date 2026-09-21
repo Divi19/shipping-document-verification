@@ -2,6 +2,7 @@
 
 from app.models.email.schemas import (
     ClassifiedEmail,
+    DecidedBy,
     EmailAttachment,
     EmailCategory,
     ParsedEmail,
@@ -50,6 +51,7 @@ __all__ = [
     "DocumentRole",
     "DocumentNormalizationResult",
     "DocumentVerificationResult",
+    "DecidedBy",
     "EmailAttachment",
     "EmailCategory",
     "EvidenceReference",

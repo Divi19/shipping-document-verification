@@ -5,6 +5,8 @@ description = "FastAPI service for shipping document verification"
 requires-python = ">=3.12,<3.14"
 dependencies = [
   "fastapi==0.141.1",
+  # Required by FastAPI for UploadFile/File(...) on /ingest/document: without it
+  # FastAPI raises at import time and the whole app fails to start.
   "uvicorn[standard]==0.52.4",
   "python-docx>=1.1.0",
   "openpyxl>=3.1.0",
@@ -45,7 +47,30 @@ target-version = "py312"
 [tool.ruff.lint]
 select = ["B", "E", "F", "I", "SIM", "UP"]
 
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI dependency markers are evaluated per request by the framework.
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Query", "fastapi.File", "fastapi.Path"]
+
 [tool.mypy]
 files = ["app", "scripts", "tests"]
 python_version = "3.12"
 strict = true
+
+# Third-party packages that ship no type information. Their own calls stay
+# unchecked; everything we write around them is still strictly typed.
+[[tool.mypy.overrides]]
+module = [
+  "diskcache.*",
+  "openpyxl.*",
+  "pypdfium2.*",
+  "pytesseract.*",
+  "google.generativeai.*",
+  "docling.*",
+  "fitz.*",
+  "markdown.*",
+]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
