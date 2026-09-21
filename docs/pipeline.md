@@ -109,16 +109,27 @@ as a defect, **and** the defect field set matches exactly. Escalation quality is
 reported separately and is not part of the final score - it is a differentiator
 for judges, not a scoreboard lever.
 
-Current measured state (plain-text reader only):
+Current measured state, with plain text, Excel and Word readable:
 
 | Axis | Value |
 |---|---|
-| final score | 0.826 |
+| final score | 0.934 |
 | classification macro-F1 | 1.000 |
-| defect precision / recall | 1.00 / 0.72 |
-| end-to-end | 33/46 |
-| escalation recall | 20/20 |
+| defect precision / recall | 1.00 / 0.89 |
+| end-to-end | 41/46 |
+| exact defect-field set | 0.97 |
+| escalation recall | 20/20, correct reason on all four types |
 
-The missing 13 end-to-end cases are the PDF, Excel and Word pairs: 4 `pdf+pdf`,
-6 `xlsx+docx`, 3 `xlsx+xlsx`. They are currently escalated as `unreadable`,
-which is honest but is where the remaining points are.
+The remaining 5 end-to-end cases are the PDF pairs. They escalate as
+`unreadable` because the PDF extractor currently produces no text without
+Docling installed or a vision key configured - honest, and where the last of
+the points are.
+
+Re-measure after any change with:
+
+```bash
+pnpm pipeline:run && pnpm pipeline:score local-data/submission.json
+```
+
+Watch defect *precision* as much as the score: every false discrepancy is a
+reviewer's wasted trip through two documents that actually agreed.
