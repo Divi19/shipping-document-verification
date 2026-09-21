@@ -2,6 +2,7 @@
 
 import pytest
 
+from app.config import resolve_data_dir
 from app.field_extraction import TextFieldExtractor, extract_text_fields
 from app.ingestion.extractors import ContentType, ExtractedContent, IngestionStatus, TextExtractor
 from app.models.extraction import (
@@ -77,7 +78,7 @@ def test_retains_continuation_address_for_inline_party() -> None:
 
 
 def test_skips_blank_and_placeholder_values() -> None:
-    text = "Shipper:\nConsignee: N/A\nNotify Party: -\nContainer Count: 2\n"
+    text = "Shipper:\nConsignee: N/A\nNotify Party: -\nGross Weight: ____MT\nContainer Count: 2\n"
 
     result = TextFieldExtractor().extract_text(
         text,
@@ -88,6 +89,7 @@ def test_skips_blank_and_placeholder_values() -> None:
     assert [candidate.field for candidate in result.candidates] == [ComparisonField.CONTAINER_COUNT]
     assert "No candidate extracted for shipper." in result.diagnostics
     assert "No candidate extracted for consignee." in result.diagnostics
+    assert "No candidate extracted for gross_weight_kg." in result.diagnostics
 
 
 def test_retains_contradictory_values_and_reports_diagnostic() -> None:
@@ -130,3 +132,24 @@ def test_rejects_non_text_document() -> None:
 
     with pytest.raises(ValueError, match="text/plain"):
         TextFieldExtractor().extract(document, DocumentRole.SHIPPING_INSTRUCTION)
+
+
+@pytest.mark.parametrize(
+    ("filename", "role"),
+    [
+        ("email_001_SI.txt", DocumentRole.SHIPPING_INSTRUCTION),
+        ("email_001_BL.txt", DocumentRole.BILL_OF_LADING),
+    ],
+)
+def test_participant_txt_examples_produce_all_seven_fields(
+    filename: str, role: DocumentRole
+) -> None:
+    source_path = resolve_data_dir() / "attachments" / filename
+    if not source_path.exists():
+        pytest.skip("Participant bundle is not available")
+
+    document = TextExtractor().extract(source_path)
+    result = TextFieldExtractor().extract(document, role)
+
+    assert {candidate.field for candidate in result.candidates} == set(ComparisonField)
+    assert result.diagnostics == []

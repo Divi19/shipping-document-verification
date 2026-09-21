@@ -118,6 +118,10 @@ LABEL_TO_FIELD = {
     alias.casefold(): field for field, aliases in FIELD_LABELS.items() for alias in aliases
 }
 GENERIC_LABEL_PATTERN = re.compile(r"^\s*[^:\n]{1,80}:\s*")
+DECORATED_PLACEHOLDER_PATTERN = re.compile(
+    r"^(?:_+|\?+|-+)(?:\s*(?:KG|KGS|MT|MTS|TONS?))?$",
+    re.IGNORECASE,
+)
 
 
 class TextFieldExtractor:
@@ -263,7 +267,11 @@ class TextFieldExtractor:
 
     @staticmethod
     def _is_placeholder(value: str) -> bool:
-        return value.strip().upper() in PLACEHOLDER_VALUES
+        stripped = value.strip()
+        return (
+            stripped.upper() in PLACEHOLDER_VALUES
+            or DECORATED_PLACEHOLDER_PATTERN.fullmatch(stripped) is not None
+        )
 
     @staticmethod
     def _build_diagnostics(candidates: list[FieldCandidate]) -> list[str]:

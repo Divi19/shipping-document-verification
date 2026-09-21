@@ -4,6 +4,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.field_extraction import TextFieldExtractor
 from app.models.extraction import (
     ALL_COMPARISON_FIELDS,
     ComparisonField,
@@ -145,3 +146,40 @@ def test_corpus_retains_conflicting_values_as_multiple_candidates() -> None:
     weights = document.candidates_for(ComparisonField.GROSS_WEIGHT_KG)
 
     assert [candidate.raw_value for candidate in weights] == ["66,000 KG", "67,000 KG"]
+
+
+def test_txt_extractor_matches_the_acceptance_manifest() -> None:
+    extractor = TextFieldExtractor()
+
+    for case in _load_manifest().cases:
+        text = (CORPUS_DIR / case.filename).read_text()
+        result = extractor.extract_text(text, case.filename, case.document_role)
+        actual = [
+            (
+                candidate.field,
+                candidate.raw_label,
+                candidate.raw_value,
+                candidate.evidence[0].source_text,
+            )
+            for candidate in result.candidates
+        ]
+        expected = [
+            (
+                candidate.field,
+                candidate.raw_label,
+                candidate.raw_value,
+                candidate.evidence_quote,
+            )
+            for candidate in case.expected_candidates
+        ]
+        extracted_fields = {candidate.field for candidate in result.candidates}
+
+        assert actual == expected, case.case_id
+        assert ALL_COMPARISON_FIELDS - extracted_fields == set(case.expected_missing_fields), (
+            case.case_id
+        )
+
+        for candidate in result.candidates:
+            locator = candidate.evidence[0].locator
+            assert isinstance(locator, TextSpanLocator)
+            assert text[locator.start : locator.end] == candidate.evidence[0].source_text
