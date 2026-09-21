@@ -16,6 +16,7 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
+from app.composition import build_pipeline
 from app.config import data_dir
 from app.pipeline import CaseOutcome, CaseRecord, Pipeline, ReviewAction, submission_entry
 from app.pipeline.inbox import parse_email
@@ -34,9 +35,10 @@ def get_store() -> CaseStore:
     return InMemoryCaseStore()
 
 
+@lru_cache(maxsize=1)
 def get_pipeline() -> Pipeline:
-    """The configured pipeline."""
-    return Pipeline(dataset_root=data_dir())
+    """The configured pipeline, with AI attached when a key is present."""
+    return build_pipeline()
 
 
 class ReviewRequest(BaseModel):

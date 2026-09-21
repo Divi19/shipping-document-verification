@@ -163,8 +163,12 @@ def _next_value(lines: list[str], index: int) -> str:
     return ""
 
 
-def _normalize_for(field: FieldName, value: str) -> str | None:
-    """Apply the normalisation appropriate to the field's type."""
+def normalize_value(field: FieldName, value: str) -> str | None:
+    """Apply the normalisation appropriate to the field's type.
+
+    Public so that any other route to a value - including the model-assisted
+    one - is held to the same rules as deterministic extraction.
+    """
     if not value.strip():
         return None
     if field in PARTY_FIELDS:
@@ -188,7 +192,7 @@ def _choose(field: FieldName, candidates: list[Candidate]) -> FieldValue:
         if totals:
             candidates = totals
 
-    resolved = [(c, _normalize_for(field, c.value)) for c in candidates]
+    resolved = [(c, normalize_value(field, c.value)) for c in candidates]
     usable = [(c, n) for c, n in resolved if n is not None and not is_missing(c.value)]
 
     if not usable:

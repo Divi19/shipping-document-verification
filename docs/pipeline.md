@@ -55,6 +55,29 @@ Escalation reasons are `wrong_doc_type`, `missing_attachment`, `unreadable` and
 - **Retries must be able to help.** Another reader for a file that failed to
   parse, yes. A missing attachment, never.
 
+## Where AI is used
+
+Two places, both narrow, and neither is trusted without a check:
+
+| Stage | When the model is asked | What stops it being believed |
+|---|---|---|
+| Classification | only when no rule matched the email | the answer must be one of the five categories |
+| Field extraction | only for a field no label matched | it must quote a line from the document, that line must exist, the value must appear inside it, and the value must normalise |
+
+A proposal that fails any check is discarded and the field stays missing, so
+the case escalates exactly as it would have. The model can recover a field it
+can point to; it cannot invent one. Anything it does recover is marked on the
+`FieldValue` and recorded as a `resolve_missing_fields` attempt, so a reviewer
+always sees that a model was involved.
+
+Set `GEMINI_API_KEY` to enable it (`GEMINI_MODEL` overrides the model).
+Without a key the pipeline runs deterministically and still escalates what it
+cannot decide - so the system never depends on a model being reachable, and a
+model failure is never a case failure.
+
+Composition lives in `app/composition.py`, deliberately outside both packages
+so `app.pipeline` never imports `app.ai`.
+
 ## Adding a document reader
 
 Implement `app/pipeline/readers.py::DocumentReader` and pass it to the

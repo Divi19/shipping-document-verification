@@ -15,10 +15,11 @@ from pathlib import Path
 # Allow both "python -m scripts.run_pipeline" and "python scripts/run_pipeline.py".
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from app.composition import build_pipeline  # noqa: E402
 from app.config import LOCAL_DATA, data_dir  # noqa: E402
-from app.pipeline import CaseRecord, Pipeline, write_submission  # noqa: E402
+from app.pipeline import CaseRecord, write_submission  # noqa: E402
 from app.pipeline.inbox import load_emails  # noqa: E402
-from app.pipeline.readers import PlainTextReader, default_readers  # noqa: E402
+from app.pipeline.readers import PlainTextReader  # noqa: E402
 
 DEFAULT_OUTPUT = LOCAL_DATA / "submission.json"
 
@@ -60,6 +61,11 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--limit", type=int, default=None, help="process the first N emails only")
     parser.add_argument(
+        "--no-ai",
+        action="store_true",
+        help="run the deterministic path only, even when GEMINI_API_KEY is set",
+    )
+    parser.add_argument(
         "--score",
         action="store_true",
         help="score the result afterwards (needs the organisers' ground truth)",
@@ -71,8 +77,10 @@ def main(argv: list[str] | None = None) -> int:
     if args.limit is not None:
         emails = emails[: args.limit]
 
-    readers = (PlainTextReader(),) if args.text_only else default_readers()
-    cases = Pipeline(dataset_root=dataset_root, readers=readers).run_all(emails)
+    pipeline = build_pipeline(dataset_root, use_ai=not args.no_ai)
+    if args.text_only:
+        pipeline.readers = (PlainTextReader(),)
+    cases = pipeline.run_all(emails)
 
     destination = write_submission(cases, args.out)
     print(summarise(cases))

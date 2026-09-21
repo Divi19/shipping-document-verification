@@ -94,6 +94,12 @@ pnpm pipeline:run                                  # run with every reader
 pnpm pipeline:score local-data/submission.json     # score against the organiser scorer
 ```
 
+AI is used in two narrow places - classifying an email no rule matched, and
+recovering a field no label matched - and both are verified before they are
+believed (see `docs/pipeline.md`). Set `GEMINI_API_KEY` to enable it; without a
+key the pipeline runs its deterministic path and still escalates whatever it
+cannot decide. `pnpm pipeline:run -- --no-ai` forces that path.
+
 `--text-only` skips the PDF/Word/Excel readers, which is the fastest way to see
 the effect of a change. The run writes `local-data/submission.json` (one entry
 per email id) and prints a summary of outcomes and escalation reasons.
