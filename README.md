@@ -81,7 +81,20 @@ The services are then available at:
 - FastAPI health: <http://localhost:8000/health>
 - FastAPI OpenAPI: <http://localhost:8000/openapi.json>
 
-The Next.js page is intentionally minimal. It confirms that the frontend is running and reports whether its server can reach the FastAPI health endpoint.
+The Next.js page provides a local document-pipeline workbench. It can run bundled samples or
+uploaded TXT/PDF files through ingestion, Box 5 extraction, Box 6 evidence verification, and
+Box 7 normalization.
+
+For a quick validation, open <http://localhost:3000> and run these included samples in order:
+
+1. `email_059_SI.pdf` — native PDF text; expected to reach 7/7 normalized fields.
+2. `email_001_SI.txt` — deterministic TXT baseline.
+3. `email_512_SI.pdf` — image-only scan for testing local OCR/fallback behaviour.
+4. `email_511_BL.pdf` — deliberately corrupt edge case; expected to report `unreadable`.
+
+If the page reports `FastAPI unavailable`, ensure `pnpm dev:api` is running in a separate
+terminal. If port 8000 is already in use, stop the older API process with `Ctrl+C` before
+starting it again.
 
 ## Optional local Supabase
 
