@@ -1,0 +1,247 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "case_id": "canonical_si",
+      "filename": "canonical_si.txt",
+      "document_role": "shipping_instruction",
+      "purpose": "Canonical labels and one candidate for every required field.",
+      "expected_candidates": [
+        {
+          "field": "shipper",
+          "raw_label": "Shipper",
+          "raw_value": "Blue Harbor Paper Pte Ltd",
+          "evidence_quote": "Shipper: Blue Harbor Paper Pte Ltd"
+        },
+        {
+          "field": "consignee",
+          "raw_label": "Consignee",
+          "raw_value": "Northstar Imports LLC",
+          "evidence_quote": "Consignee: Northstar Imports LLC"
+        },
+        {
+          "field": "notify_party",
+          "raw_label": "Notify Party",
+          "raw_value": "Northstar Logistics LLC",
+          "evidence_quote": "Notify Party: Northstar Logistics LLC"
+        },
+        {
+          "field": "port_of_loading",
+          "raw_label": "Port of Loading",
+          "raw_value": "Port Klang, Malaysia",
+          "evidence_quote": "Port of Loading: Port Klang, Malaysia"
+        },
+        {
+          "field": "port_of_discharge",
+          "raw_label": "Port of Discharge",
+          "raw_value": "Rotterdam, Netherlands",
+          "evidence_quote": "Port of Discharge: Rotterdam, Netherlands"
+        },
+        {
+          "field": "container_count",
+          "raw_label": "Container Count",
+          "raw_value": "3",
+          "evidence_quote": "Container Count: 3"
+        },
+        {
+          "field": "gross_weight_kg",
+          "raw_label": "Gross Weight",
+          "raw_value": "66,000 KG",
+          "evidence_quote": "Gross Weight: 66,000 KG"
+        }
+      ],
+      "expected_missing_fields": []
+    },
+    {
+      "case_id": "label_variants_bl",
+      "filename": "label_variants_bl.txt",
+      "document_role": "bill_of_lading",
+      "purpose": "BL synonyms map to canonical fields without normalizing their values.",
+      "expected_candidates": [
+        {
+          "field": "shipper",
+          "raw_label": "Exporter",
+          "raw_value": "BLUE HARBOR PAPER PTE. LTD.",
+          "evidence_quote": "Exporter: BLUE HARBOR PAPER PTE. LTD."
+        },
+        {
+          "field": "consignee",
+          "raw_label": "To the Order of",
+          "raw_value": "NORTHSTAR IMPORTS LLC",
+          "evidence_quote": "To the Order of: NORTHSTAR IMPORTS LLC"
+        },
+        {
+          "field": "notify_party",
+          "raw_label": "Notify",
+          "raw_value": "NORTHSTAR LOGISTICS LLC",
+          "evidence_quote": "Notify: NORTHSTAR LOGISTICS LLC"
+        },
+        {
+          "field": "port_of_loading",
+          "raw_label": "Load Port",
+          "raw_value": "PORT KLANG, MALAYSIA",
+          "evidence_quote": "Load Port: PORT KLANG, MALAYSIA"
+        },
+        {
+          "field": "port_of_discharge",
+          "raw_label": "Discharge Port",
+          "raw_value": "ROTTERDAM, NETHERLANDS",
+          "evidence_quote": "Discharge Port: ROTTERDAM, NETHERLANDS"
+        },
+        {
+          "field": "container_count",
+          "raw_label": "Containers",
+          "raw_value": "3 X 40' HC",
+          "evidence_quote": "Containers: 3 X 40' HC"
+        },
+        {
+          "field": "gross_weight_kg",
+          "raw_label": "Gross Wt (kgs)",
+          "raw_value": "66000",
+          "evidence_quote": "Gross Wt (kgs): 66000"
+        }
+      ],
+      "expected_missing_fields": []
+    },
+    {
+      "case_id": "multiline_parties_si",
+      "filename": "multiline_parties_si.txt",
+      "document_role": "shipping_instruction",
+      "purpose": "Party blocks retain qualifiers and addresses as raw evidence.",
+      "expected_candidates": [
+        {
+          "field": "shipper",
+          "raw_label": "Shipper",
+          "raw_value": "Blue Harbor Paper Trading\nOn behalf of Seaside Holdings Pte Ltd\n77 Harbor Road, Singapore 018956",
+          "evidence_quote": "Shipper:\nBlue Harbor Paper Trading\nOn behalf of Seaside Holdings Pte Ltd\n77 Harbor Road, Singapore 018956"
+        },
+        {
+          "field": "consignee",
+          "raw_label": "Consignee",
+          "raw_value": "Northstar Imports LLC\n120 Market Street, Rotterdam",
+          "evidence_quote": "Consignee:\nNorthstar Imports LLC\n120 Market Street, Rotterdam"
+        },
+        {
+          "field": "notify_party",
+          "raw_label": "Notify Party",
+          "raw_value": "Northstar Logistics LLC\nWarehouse 8, Rotterdam",
+          "evidence_quote": "Notify Party:\nNorthstar Logistics LLC\nWarehouse 8, Rotterdam"
+        },
+        {
+          "field": "port_of_loading",
+          "raw_label": "POL",
+          "raw_value": "Port Klang, Malaysia",
+          "evidence_quote": "POL: Port Klang, Malaysia"
+        },
+        {
+          "field": "port_of_discharge",
+          "raw_label": "POD",
+          "raw_value": "Rotterdam, Netherlands",
+          "evidence_quote": "POD: Rotterdam, Netherlands"
+        },
+        {
+          "field": "container_count",
+          "raw_label": "No. of Containers",
+          "raw_value": "3 x 40HC",
+          "evidence_quote": "No. of Containers: 3 x 40HC"
+        },
+        {
+          "field": "gross_weight_kg",
+          "raw_label": "Gross Weight",
+          "raw_value": "66,000 KG",
+          "evidence_quote": "Gross Weight: 66,000 KG"
+        }
+      ],
+      "expected_missing_fields": []
+    },
+    {
+      "case_id": "contradictory_bl",
+      "filename": "contradictory_bl.txt",
+      "document_role": "bill_of_lading",
+      "purpose": "Conflicting weights remain separate candidates for Box 6.",
+      "expected_candidates": [
+        {
+          "field": "shipper",
+          "raw_label": "Shipper",
+          "raw_value": "Blue Harbor Paper Pte Ltd",
+          "evidence_quote": "Shipper: Blue Harbor Paper Pte Ltd"
+        },
+        {
+          "field": "consignee",
+          "raw_label": "Consignee",
+          "raw_value": "Northstar Imports LLC",
+          "evidence_quote": "Consignee: Northstar Imports LLC"
+        },
+        {
+          "field": "notify_party",
+          "raw_label": "Notify Party",
+          "raw_value": "Northstar Logistics LLC",
+          "evidence_quote": "Notify Party: Northstar Logistics LLC"
+        },
+        {
+          "field": "port_of_loading",
+          "raw_label": "Port of Loading",
+          "raw_value": "Port Klang, Malaysia",
+          "evidence_quote": "Port of Loading: Port Klang, Malaysia"
+        },
+        {
+          "field": "port_of_discharge",
+          "raw_label": "Port of Discharge",
+          "raw_value": "Rotterdam, Netherlands",
+          "evidence_quote": "Port of Discharge: Rotterdam, Netherlands"
+        },
+        {
+          "field": "container_count",
+          "raw_label": "Container Count",
+          "raw_value": "3",
+          "evidence_quote": "Container Count: 3"
+        },
+        {
+          "field": "gross_weight_kg",
+          "raw_label": "Gross Weight",
+          "raw_value": "66,000 KG",
+          "evidence_quote": "Gross Weight: 66,000 KG"
+        },
+        {
+          "field": "gross_weight_kg",
+          "raw_label": "Total Gross Weight",
+          "raw_value": "67,000 KG",
+          "evidence_quote": "Total Gross Weight: 67,000 KG"
+        }
+      ],
+      "expected_missing_fields": []
+    },
+    {
+      "case_id": "missing_values_bl",
+      "filename": "missing_values_bl.txt",
+      "document_role": "bill_of_lading",
+      "purpose": "Blank and placeholder values do not become extraction candidates.",
+      "expected_candidates": [
+        {
+          "field": "port_of_loading",
+          "raw_label": "Port of Loading",
+          "raw_value": "Port Klang, Malaysia",
+          "evidence_quote": "Port of Loading: Port Klang, Malaysia"
+        },
+        {
+          "field": "port_of_discharge",
+          "raw_label": "Port of Discharge",
+          "raw_value": "Rotterdam, Netherlands",
+          "evidence_quote": "Port of Discharge: Rotterdam, Netherlands"
+        },
+        {
+          "field": "container_count",
+          "raw_label": "Container Count",
+          "raw_value": "3",
+          "evidence_quote": "Container Count: 3"
+        }
+      ],
+      "expected_missing_fields": [
+        "shipper",
+        "consignee",
+        "notify_party",
+        "gross_weight_kg"
+      ]
+    }
+  ]
+}
