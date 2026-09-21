@@ -1,11 +1,11 @@
 """DOCX (Word) document extractor."""
 
-import hashlib
 import io
 from pathlib import Path
 from typing import Optional
 
 from docx import Document
+from docx.document import Document as DocxDocument
 from docx.table import Table as DocxTable
 from docx.text.paragraph import Paragraph
 
@@ -27,7 +27,7 @@ class DocxExtractor(DocumentExtractor):
         doc = Document(io.BytesIO(content))
         return self._extract_document(doc, Path(filename))
 
-    def _extract_document(self, doc: Document, source: Path) -> ExtractedContent:
+    def _extract_document(self, doc: DocxDocument, source: Path) -> ExtractedContent:
         """Extract all content from a Word document."""
         text_parts = []
         tables = []
@@ -79,14 +79,15 @@ class DocxExtractor(DocumentExtractor):
         rows = []
         headers = None
 
-        for i, row in enumerate(table.rows):
+        for row in table.rows:
             cells = [cell.text.strip() for cell in row.cells]
 
             # Skip completely empty rows
             if not any(cells):
                 continue
 
-            if i == 0:
+            # The first *non-empty* row is the header (see xlsx extractor).
+            if headers is None:
                 headers = cells
             else:
                 rows.append(cells)

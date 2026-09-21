@@ -44,7 +44,11 @@ class Table:
             return str(cell).replace("|", "\\|").replace("\n", " ")
 
         header_escaped = [escape_cell(h) for h in header_row]
-        separator = ["---"] * len(header_escaped)
+        # A header row narrower than the body (merged title cells are common in
+        # shipping documents) must never truncate the values underneath it.
+        width = max([len(header_escaped), *(len(row) for row in data_rows)], default=0)
+        header_escaped += [""] * (width - len(header_escaped))
+        separator = ["---"] * width
 
         lines = [
             "| " + " | ".join(header_escaped) + " |",
@@ -53,10 +57,8 @@ class Table:
 
         for row in data_rows:
             row_escaped = [escape_cell(cell) for cell in row]
-            # Pad row to match header length
-            while len(row_escaped) < len(header_escaped):
-                row_escaped.append("")
-            lines.append("| " + " | ".join(row_escaped[:len(header_escaped)]) + " |")
+            row_escaped += [""] * (width - len(row_escaped))
+            lines.append("| " + " | ".join(row_escaped) + " |")
 
         return "\n".join(lines)
 

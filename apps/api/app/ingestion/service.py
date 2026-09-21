@@ -153,6 +153,11 @@ class DocumentIngestionService:
 
         # Extract content
         extracted = extractor.extract_bytes(content, filename)
+        # Keep a record of which reader produced this text. Extractors that
+        # choose between strategies (Docling, vision) set their own value.
+        extracted.metadata.setdefault("extractor", extractor_name)
+        # The filename travels with the content so evidence can name its source.
+        extracted.metadata.setdefault("source_filename", extracted.source_filename or filename)
 
         # Cache result
         self.cache.set(
@@ -226,15 +231,6 @@ def set_document_service(service: DocumentIngestionService):
     """Set global document ingestion service (for testing)."""
     global _service_instance
     _service_instance = service
-
-
-def ingest_document(
-    source: str | bytes | bytearray | Path | object,
-    filename: Optional[str] = None,
-    config: Optional[DocumentIngestionConfig] = None,
-) -> MarkdownDocument:
-    """Convenience helper for the rest of the pipeline."""
-    return get_document_service(config).ingest(source, filename=filename)
 
 
 def ingest_document(

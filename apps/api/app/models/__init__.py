@@ -6,6 +6,7 @@ from app.models.email.schemas import (
     EmailAttachment,
     EmailCategory,
     ClassifiedEmail,
+    DecidedBy,
 )
 
 __all__ = [
@@ -14,4 +15,5 @@ __all__ = [
     "EmailAttachment",
     "EmailCategory",
     "ClassifiedEmail",
+    "DecidedBy",
 ]

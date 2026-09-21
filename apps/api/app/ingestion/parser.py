@@ -21,7 +21,9 @@ class EmailParser:
     ):
         self.inbox_dir = Path(inbox_dir)
         self.document_service = document_service or get_document_service()
-        self.attachments_base_dir = Path(attachments_base_dir) if attachments_base_dir else self.inbox_dir.parent / "attachments"
+        self.attachments_base_dir = (
+            Path(attachments_base_dir) if attachments_base_dir else self.inbox_dir.parent
+        )
 
     def parse_all(self) -> list[ParsedEmail]:
         """Parse all emails in the inbox directory."""
@@ -96,11 +98,12 @@ class EmailParser:
         Returns:
             MarkdownDocument with extracted content
         """
-        # Resolve full path
+        # Attachment paths in the email records are relative to the dataset
+        # root and already include the "attachments/" prefix, so join from the
+        # root rather than from the attachments directory itself.
         full_path = self.attachments_base_dir / attachment.path
         if not full_path.exists():
-            # Try relative to inbox_dir
-            full_path = self.inbox_dir.parent / attachment.path
+            full_path = self.attachments_base_dir / Path(attachment.path).name
 
         if not full_path.exists():
             raise FileNotFoundError(f"Attachment not found: {attachment.path}")

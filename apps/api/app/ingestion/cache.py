@@ -7,7 +7,7 @@ from typing import Optional
 
 import diskcache
 
-from .extractors.base import ExtractedContent
+from .extractors.base import ContentType, ExtractedContent, Image, Table
 
 logger = logging.getLogger(__name__)
 
@@ -61,12 +61,30 @@ class DocumentCache:
             cached = self.cache.get(key)
             if cached:
                 logger.debug(f"Cache hit for {extractor_name} ({content_hash[:8]})")
-                # Reconstruct ExtractedContent from cached dict
-                return ExtractedContent(**cached)
+                return self._rehydrate(cached)
         except Exception as e:
             logger.warning(f"Cache read error: {e}")
 
         return None
+
+    @staticmethod
+    def _rehydrate(cached: dict) -> ExtractedContent:
+        """Rebuild an ExtractedContent from its cached dictionary.
+
+        ExtractedContent is a dataclass, so it performs no coercion: passing the
+        stored dict straight into it leaves content_type as a plain string and
+        tables as dicts, and the next caller fails on .value or .to_markdown().
+        """
+        return ExtractedContent(
+            text=cached.get("text", ""),
+            tables=[Table(**table) for table in cached.get("tables", [])],
+            images=[
+                Image(data=b"", **image) for image in cached.get("images", [])
+            ],
+            metadata=cached.get("metadata", {}),
+            content_type=ContentType(cached.get("content_type", ContentType.UNKNOWN.value)),
+            source_filename=cached.get("source_filename", ""),
+        )
 
     def set(
         self,

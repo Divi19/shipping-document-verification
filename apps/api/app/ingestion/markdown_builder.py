@@ -15,6 +15,8 @@ class MarkdownDocument:
     metadata: dict = field(default_factory=dict)
     tables: list[Table] = field(default_factory=list)
     images: list[Image] = field(default_factory=list)
+    # The file this content came from, so a citation can name its source.
+    source_filename: str = ""
 
     def to_markdown(self) -> str:
         """Return full markdown content."""
@@ -63,6 +65,7 @@ class MarkdownBuilder:
             metadata=extracted.metadata,
             tables=extracted.tables,
             images=extracted.images,
+            source_filename=extracted.source_filename,
         )
 
     def _build_metadata_section(self, extracted: ExtractedContent) -> str:
@@ -120,11 +123,11 @@ class MarkdownBuilder:
         return "\n\n".join(parts)
 
 
-def build_simple_markdown(extracted: ExtractedContent) -> str:
+def build_simple_markdown(extracted: ExtractedContent) -> MarkdownDocument:
     """Convenience function for simple markdown output."""
     builder = MarkdownBuilder(
         include_metadata=True,
         include_tables=True,
         include_images=False,  # Skip images for simple text output
     )
-    return builder.build(extracted).content
+    return builder.build(extracted)
