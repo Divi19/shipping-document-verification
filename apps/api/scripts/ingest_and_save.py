@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """Ingest all attachments from the sample data folder and save markdown.
 
-Run from the repository root (where ``pyproject.toml`` lives):
+Run from the repository root:
 
     python apps/api/scripts/ingest_and_save.py [output_dir]
 
 If ``output_dir`` is omitted the script creates ``markdown-output`` in the
-project root.  The script disables the Gemini Vision fallback (it requires a
-cloud API key), which is fine for the sample TXT/DOCX/XLSX files.
+project root. The input directory follows ``SDOC_DATA_DIR`` and the script
+disables Gemini Vision because it requires a cloud API key.
 """
 
 import sys
@@ -19,15 +19,19 @@ api_root = Path(__file__).resolve().parents[1]
 repo_root = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(api_root))
 
-from app.ingestion.service import DocumentIngestionService, DocumentIngestionConfig
+from app.config import resolve_data_dir  # noqa: E402
+from app.ingestion.service import (  # noqa: E402
+    DocumentIngestionConfig,
+    DocumentIngestionService,
+)
 
 
 def main() -> None:
-    # Locate the sample attachments directory (relative to the repo root).
-    attachments_dir = repo_root / "sdoc-data" / "attachments"
+    data_dir = resolve_data_dir()
+    attachments_dir = data_dir / "attachments"
     if not attachments_dir.is_dir():
         print(f"[!] Attachments directory not found: {attachments_dir}")
-        print("    Make sure the ``sdoc-data`` folder is present (it is .gitignored).")
+        print(f"    Set SDOC_DATA_DIR or place the participant bundle at: {data_dir}")
         sys.exit(1)
 
     # Destination for markdown files.
@@ -43,14 +47,9 @@ def main() -> None:
             continue
         try:
             result = service.ingest_file(src_path)
-            # ``ingest_file`` returns either a MarkdownDocument or a plain string.
-            # The service currently returns a string (markdown).  If the API ever
-            # changes to return an object with a ``content`` attribute we handle that
-            # gracefully.
-            markdown_text = getattr(result, "content", result)
             # Write a .md file using the same stem as the source.
             dst_path = out_dir / f"{src_path.stem}.md"
-            dst_path.write_text(markdown_text, encoding="utf-8")
+            dst_path.write_text(result.content, encoding="utf-8")
             print(f"✔ {src_path.name} → {dst_path.name}")
         except Exception as exc:
             print(f"[ERROR] {src_path.name}: {exc}")

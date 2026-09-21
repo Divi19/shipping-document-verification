@@ -4,6 +4,7 @@ from fastapi import Depends, FastAPI, File, UploadFile
 from pydantic import BaseModel, Field
 
 from app.agents.email_classifier.classifier import EmailClassifier
+from app.config import resolve_data_dir
 from app.ingestion.extractors import IngestionStatus
 from app.ingestion.parser import EmailParser
 from app.ingestion.service import (
@@ -55,21 +56,20 @@ def health() -> HealthResponse:
 
 
 @app.post("/classify", response_model=list[ClassifiedEmail], tags=["classification"])
-def classify_emails(inbox_path: str = "sdoc-data") -> list[ClassifiedEmail]:
+def classify_emails(inbox_path: str | None = None) -> list[ClassifiedEmail]:
     """Classify all emails in the inbox."""
-    parser = EmailParser(f"{inbox_path}/inbox")
+    parser = EmailParser(str(resolve_data_dir(inbox_path) / "inbox"))
     emails = parser.parse_all()
     classifier = EmailClassifier()
     return classifier.classify_batch(emails)
 
 
 @app.get("/classify/{email_id}", response_model=ClassifiedEmail, tags=["classification"])
-def classify_email(email_id: str, inbox_path: str = "sdoc-data") -> ClassifiedEmail:
+def classify_email(email_id: str, inbox_path: str | None = None) -> ClassifiedEmail:
     """Classify a single email by ID."""
-    from pathlib import Path
-
-    parser = EmailParser(f"{inbox_path}/inbox")
-    email = parser.parse_file(Path(f"{inbox_path}/inbox/{email_id}.json"))
+    inbox_dir = resolve_data_dir(inbox_path) / "inbox"
+    parser = EmailParser(str(inbox_dir))
+    email = parser.parse_file(inbox_dir / f"{email_id}.json")
     classifier = EmailClassifier()
     return classifier.classify(email)
 
@@ -128,17 +128,16 @@ async def ingest_text(
 async def ingest_email_attachments(
     email_id: str,
     service: IngestionServiceDependency,
-    inbox_path: str = "sdoc-data",
+    inbox_path: str | None = None,
 ) -> dict[str, IngestResponse]:
     """
     Ingest all attachments for a specific email.
 
     Returns a dict mapping attachment filename to ingestion result.
     """
-    from pathlib import Path
-
-    parser = EmailParser(f"{inbox_path}/inbox", document_service=service)
-    email = parser.parse_file(Path(f"{inbox_path}/inbox/{email_id}.json"))
+    inbox_dir = resolve_data_dir(inbox_path) / "inbox"
+    parser = EmailParser(str(inbox_dir), document_service=service)
+    email = parser.parse_file(inbox_dir / f"{email_id}.json")
 
     results = {}
     for attachment in email.attachments:

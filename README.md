@@ -48,6 +48,9 @@ API_BASE_URL=http://localhost:8000 pnpm dev:web
 
 Do not commit `.env`, local credentials, service-role keys, or other secrets.
 
+`SDOC_DATA_DIR` may point to an alternate participant-bundle directory. When it is unset,
+the API uses `local-data/sdoc-hackathon-bundle`.
+
 ## Local development
 
 Start FastAPI in one terminal:

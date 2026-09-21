@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from app.config import resolve_data_dir
 from app.ingestion.extractors import (
     ContentType,
     DocxExtractor,
@@ -256,20 +257,17 @@ class TestIntegrationWithSampleFiles:
 
     def test_sample_txt_attachment(self, service):
         """Test with a real TXT attachment from sample data."""
-        sample_file = Path("sdoc-data/attachments/email_001_BL.txt")
+        sample_file = resolve_data_dir() / "attachments" / "email_001_BL.txt"
         if not sample_file.exists():
             pytest.skip("Sample file not found")
 
         result = service.ingest_file(sample_file)
         assert len(result.content) > 0
-        assert (
-            "email_001_BL.txt" in str(result.metadata)
-            or result.metadata.get("source_filename") == "email_001_BL.txt"
-        )
+        assert result.source_filename == "email_001_BL.txt"
 
     def test_sample_xlsx_attachment(self, service):
         """Test with a real XLSX attachment from sample data."""
-        sample_file = Path("sdoc-data/attachments/email_005_BL.xlsx")
+        sample_file = resolve_data_dir() / "attachments" / "email_005_BL.xlsx"
         if not sample_file.exists():
             pytest.skip("Sample file not found")
 
@@ -280,7 +278,7 @@ class TestIntegrationWithSampleFiles:
 
     def test_ingest_all_attachments(self, service):
         """Ingest every attachment in sdoc-data and verify non‑empty output."""
-        attachments_dir = Path("sdoc-data/attachments")
+        attachments_dir = resolve_data_dir() / "attachments"
         if not attachments_dir.is_dir():
             pytest.skip("Attachments directory not found")
         for file_path in sorted(attachments_dir.iterdir()):

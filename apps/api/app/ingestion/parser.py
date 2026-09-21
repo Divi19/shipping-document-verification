@@ -1,13 +1,16 @@
 """Email ingestion and parsing with document extraction."""
 
 import json
+import logging
 import re
 from pathlib import Path
-from typing import Optional
 
-from app.models.email.schemas import ParsedEmail, EmailAttachment
-from app.ingestion.service import get_document_service, DocumentIngestionService
+from app.ingestion.extractors import IngestionStatus
 from app.ingestion.markdown_builder import MarkdownDocument
+from app.ingestion.service import DocumentIngestionService, get_document_service
+from app.models.email.schemas import EmailAttachment, ParsedEmail
+
+logger = logging.getLogger(__name__)
 
 
 class EmailParser:
@@ -16,12 +19,14 @@ class EmailParser:
     def __init__(
         self,
         inbox_dir: str,
-        document_service: Optional[DocumentIngestionService] = None,
-        attachments_base_dir: Optional[str] = None,
-    ):
+        document_service: DocumentIngestionService | None = None,
+        attachments_base_dir: str | None = None,
+    ) -> None:
         self.inbox_dir = Path(inbox_dir)
         self.document_service = document_service or get_document_service()
-        self.attachments_base_dir = Path(attachments_base_dir) if attachments_base_dir else self.inbox_dir.parent / "attachments"
+        self.attachments_base_dir = (
+            Path(attachments_base_dir) if attachments_base_dir else self.inbox_dir.parent
+        )
 
     def parse_all(self) -> list[ParsedEmail]:
         """Parse all emails in the inbox directory."""
@@ -35,14 +40,18 @@ class EmailParser:
         data = json.loads(path.read_text())
         return self.parse_dict(data)
 
-    def parse_dict(self, data: dict) -> ParsedEmail:
+    def parse_dict(self, data: dict[str, object]) -> ParsedEmail:
         """Parse email from dictionary."""
-        email_id = data["email_id"]
-        from_raw = data.get("from", "")
+        email_id = str(data["email_id"])
+        from_raw = str(data.get("from", ""))
         from_name, from_address = self._parse_from(from_raw)
-        subject = data.get("subject", "")
-        body = data.get("body", "")
-        attachments = self._parse_attachments(data.get("attachments", []))
+        subject = str(data.get("subject", ""))
+        body = str(data.get("body", ""))
+        attachment_data = data.get("attachments", [])
+        attachment_paths = (
+            [str(path) for path in attachment_data] if isinstance(attachment_data, list) else []
+        )
+        attachments = self._parse_attachments(attachment_paths)
 
         return ParsedEmail(
             email_id=email_id,
@@ -53,9 +62,9 @@ class EmailParser:
             attachments=attachments,
         )
 
-    def _parse_from(self, from_raw: str) -> tuple[Optional[str], str]:
+    def _parse_from(self, from_raw: str) -> tuple[str | None, str]:
         """Parse 'From' header into name and address."""
-        match = re.match(r'^(.+?)\s*<(.+?)>$', from_raw)
+        match = re.match(r"^(.+?)\s*<(.+?)>$", from_raw)
         if match:
             return match.group(1).strip(), match.group(2).strip()
         if "@" in from_raw:
@@ -68,11 +77,13 @@ class EmailParser:
         for path in attachment_paths:
             filename = Path(path).name
             content_type = self._guess_content_type(filename)
-            attachments.append(EmailAttachment(
-                path=path,
-                filename=filename,
-                content_type=content_type,
-            ))
+            attachments.append(
+                EmailAttachment(
+                    path=path,
+                    filename=filename,
+                    content_type=content_type,
+                )
+            )
         return attachments
 
     def _guess_content_type(self, filename: str) -> str:
@@ -96,16 +107,21 @@ class EmailParser:
         Returns:
             MarkdownDocument with extracted content
         """
-        # Resolve full path
-        full_path = self.attachments_base_dir / attachment.path
-        if not full_path.exists():
-            # Try relative to inbox_dir
-            full_path = self.inbox_dir.parent / attachment.path
+        return self.document_service.ingest_file(self._resolve_attachment_path(attachment))
 
-        if not full_path.exists():
-            raise FileNotFoundError(f"Attachment not found: {attachment.path}")
+    def _resolve_attachment_path(self, attachment: EmailAttachment) -> Path:
+        """Resolve an attachment inside the configured data directory."""
+        base_dir = self.attachments_base_dir.resolve()
+        candidates = [base_dir / attachment.path, base_dir / attachment.filename]
 
-        return self.document_service.ingest_file(full_path)
+        for candidate in candidates:
+            resolved = candidate.resolve()
+            if not resolved.is_relative_to(base_dir):
+                continue
+            if resolved.is_file():
+                return resolved
+
+        raise FileNotFoundError(f"Attachment not found: {attachment.path}")
 
     def extract_all_attachments(self, email: ParsedEmail) -> dict[str, MarkdownDocument]:
         """
@@ -122,13 +138,12 @@ class EmailParser:
             try:
                 results[attachment.filename] = self.extract_attachment_content(attachment)
             except Exception as e:
-                # Log error but continue with other attachments
-                import logging
-                logging.getLogger(__name__).warning(
-                    f"Failed to extract {attachment.filename}: {e}"
-                )
+                logger.warning("Failed to extract %s: %s", attachment.filename, e)
                 results[attachment.filename] = MarkdownDocument(
                     content=f"[Error extracting {attachment.filename}: {e}]",
                     metadata={"error": str(e)},
+                    source_filename=attachment.filename,
+                    status=IngestionStatus.FAILED,
+                    diagnostics=[f"{type(e).__name__}: {e}"],
                 )
         return results

@@ -1,23 +1,20 @@
 #!/usr/bin/env python3
 """Test classifier against SDOC data."""
 
-import sys
 import json
+import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from app.ingestion.parser import EmailParser
-from app.agents.email_classifier.classifier import EmailClassifier
-from app.models.email.schemas import EmailCategory
+from app.agents.email_classifier.classifier import EmailClassifier  # noqa: E402
+from app.config import resolve_data_dir  # noqa: E402
+from app.ingestion.parser import EmailParser  # noqa: E402
+from app.models.email.schemas import EmailCategory  # noqa: E402
 
 
-def main():
-    # Default to project root sdoc-data (two levels up from apps/api)
-    project_root = Path(__file__).parent.parent.parent.parent
-    inbox_path = project_root / "sdoc-data"
-    if len(sys.argv) > 1:
-        inbox_path = Path(sys.argv[1])
+def main() -> None:
+    inbox_path = resolve_data_dir(sys.argv[1] if len(sys.argv) > 1 else None)
 
     parser = EmailParser(str(inbox_path / "inbox"))
     emails = parser.parse_all()
@@ -32,6 +29,7 @@ def main():
 
     # Summary
     from collections import Counter
+
     counts = Counter(r.category.value for r in results)
     print("\n=== Classification Summary ===")
     for cat, count in counts.most_common():
@@ -49,7 +47,7 @@ def main():
                 print(f"    confidence={r.confidence:.2f} reason={r.reasoning}")
 
     # Export to JSON (submission format)
-    submission = {}
+    submission: dict[str, dict[str, object]] = {}
     for r in results:
         submission[r.email_id] = {
             "category": r.category.value,
