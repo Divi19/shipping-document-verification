@@ -217,240 +217,257 @@ export function PipelineWorkbench({ apiConnected }: { apiConnected: boolean }) {
         ))}
       </section>
 
-      <section className="workspace">
-        <form className="control-panel" onSubmit={runPipeline}>
-          <div className="panel-heading">
-            <div>
-              <p className="eyebrow">Test input</p>
-              <h2>Choose a document</h2>
-            </div>
-            <div className="segmented">
-              <button
-                className={mode === "sample" ? "active" : ""}
-                onClick={() => setMode("sample")}
-                type="button"
-              >
-                Included sample
-              </button>
-              <button
-                className={mode === "upload" ? "active" : ""}
-                onClick={() => setMode("upload")}
-                type="button"
-              >
-                Upload file
-              </button>
-            </div>
-          </div>
-
-          {mode === "sample" ? (
-            <div className="field-group">
-              <label htmlFor="sample">Participant attachment</label>
-              <select
-                id="sample"
-                onChange={(event) => chooseSample(event.target.value)}
-                value={sampleName}
-              >
-                {samples.map((sample) => (
-                  <option key={sample.filename} value={sample.filename}>
-                    {sample.filename}
-                  </option>
-                ))}
-              </select>
-              <div className="quick-samples">
-                {recommendedSamples
-                  .filter((name) =>
-                    samples.some((sample) => sample.filename === name),
-                  )
-                  .map((name) => (
-                    <button
-                      key={name}
-                      onClick={() => chooseSample(name)}
-                      type="button"
-                    >
-                      {name}
-                    </button>
-                  ))}
-              </div>
-              {selectedSample && (
-                <p className="hint">
-                  Detected role:{" "}
-                  {selectedSample.document_role === "shipping_instruction"
-                    ? "Shipping Instruction"
-                    : "Bill of Lading"}
-                </p>
-              )}
-            </div>
-          ) : (
-            <div className="field-group">
-              <label htmlFor="file">PDF or TXT document</label>
-              <input
-                accept=".pdf,.txt,application/pdf,text/plain"
-                id="file"
-                onChange={(event) => setFile(event.target.files?.[0] ?? null)}
-                type="file"
-              />
-              <p className="hint">Use one SI or one draft BL per run.</p>
-            </div>
-          )}
-
-          <fieldset>
-            <legend>Document role</legend>
-            <label className="radio-card">
-              <input
-                checked={role === "shipping_instruction"}
-                name="role"
-                onChange={() => setRole("shipping_instruction")}
-                type="radio"
-              />
-              <span>
-                <strong>Shipping Instruction</strong>
-                <small>Source instructions from the shipper</small>
-              </span>
-            </label>
-            <label className="radio-card">
-              <input
-                checked={role === "bill_of_lading"}
-                name="role"
-                onChange={() => setRole("bill_of_lading")}
-                type="radio"
-              />
-              <span>
-                <strong>Draft Bill of Lading</strong>
-                <small>Carrier document to be checked</small>
-              </span>
-            </label>
-          </fieldset>
-
-          <button
-            className="primary-button"
-            disabled={loading || !apiConnected}
-            type="submit"
-          >
-            {loading ? "Running pipeline…" : "Run document pipeline"}
-          </button>
-          {error && <p className="form-error">{error}</p>}
-        </form>
-
-        <section className="results-panel">
-          {!result ? (
-            <div className="empty-state">
-              <div>↗</div>
-              <h2>Results appear here</h2>
-              <p>
-                Start with <strong>email_059_SI.pdf</strong>. It contains native
-                text and should complete all seven fields without OCR or Gemini.
-              </p>
-            </div>
-          ) : (
-            <>
-              <div className="result-heading">
-                <div>
-                  <p className="eyebrow">Latest run</p>
-                  <h2>{result.ingestion.filename}</h2>
-                </div>
-                <span
-                  className={`result-status ${pipelineComplete ? "complete" : "partial"}`}
-                >
-                  {pipelineOutcome}
-                </span>
-              </div>
-              <div className="metric-grid">
-                <div>
-                  <small>Extractor</small>
-                  <strong>{result.ingestion.extractor ?? "None"}</strong>
-                </div>
-                <div>
-                  <small>Candidates</small>
-                  <strong>{result.candidates?.candidates.length ?? 0}/7</strong>
-                </div>
-                <div>
-                  <small>Verified</small>
-                  <strong>
-                    {result.verification?.fields.filter(
-                      (field) => field.verified_field,
-                    ).length ?? 0}
-                    /7
-                  </strong>
-                </div>
-                <div>
-                  <small>Normalized</small>
-                  <strong>
-                    {result.normalization?.document.fields.length ?? 0}/7
-                  </strong>
-                </div>
-              </div>
-
-              {(result.ingestion.diagnostics.length > 0 ||
-                result.candidates?.diagnostics.length) && (
-                <div className="diagnostics">
-                  <strong>Diagnostics</strong>
-                  <ul>
-                    {[
-                      ...result.ingestion.diagnostics,
-                      ...(result.candidates?.diagnostics ?? []),
-                    ].map((item, index) => (
-                      <li key={`${item}-${index}`}>{item}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              <div className="field-results">
-                {Object.entries(fieldLabels).map(([field, label]) => {
-                  const candidate = result.candidates?.candidates.find(
-                    (item) => item.field === field,
-                  );
-                  const verification = verificationMap.get(field);
-                  const normalized = normalizedMap.get(field);
-                  return (
-                    <article className="field-result" key={field}>
-                      <div>
-                        <small>{label}</small>
-                        <strong>
-                          {normalized
-                            ? displayNormalized(normalized)
-                            : (candidate?.raw_value ?? "Not found")}
-                        </strong>
-                      </div>
-                      <span
-                        className={
-                          verification?.verified_field
-                            ? "field-ok"
-                            : "field-missing"
-                        }
-                      >
-                        {verification?.verified_field
-                          ? "Verified"
-                          : verification?.issues.join(", ") || "Unavailable"}
-                      </span>
-                      {candidate && (
-                        <p>
-                          Raw: {candidate.raw_value} ·{" "}
-                          {candidate.extraction_method} ·{" "}
-                          {(candidate.confidence * 100).toFixed(1)}%
-                        </p>
-                      )}
-                    </article>
-                  );
-                })}
-              </div>
-
-              <details>
-                <summary>Extracted document text</summary>
-                <pre>
-                  {result.ingestion.extracted_text ||
-                    "No readable text was extracted."}
-                </pre>
-              </details>
-              <details>
-                <summary>Complete JSON response</summary>
-                <pre>{JSON.stringify(result, null, 2)}</pre>
-              </details>
-            </>
-          )}
-        </section>
-      </section>
       <CaseWorkbench apiConnected={apiConnected} />
+
+      <section className="diagnostics-section">
+        <div className="section-heading">
+          <div>
+            <p className="eyebrow">Technical diagnostics</p>
+            <h2>Inspect a single document</h2>
+          </div>
+          <p>
+            Debug OCR, extraction candidates, source evidence, and normalized
+            values without running a complete SI-to-BL comparison.
+          </p>
+        </div>
+
+        <div className="workspace">
+          <form className="control-panel" onSubmit={runPipeline}>
+            <div className="panel-heading">
+              <div>
+                <p className="eyebrow">Test input</p>
+                <h2>Choose a document</h2>
+              </div>
+              <div className="segmented">
+                <button
+                  className={mode === "sample" ? "active" : ""}
+                  onClick={() => setMode("sample")}
+                  type="button"
+                >
+                  Included sample
+                </button>
+                <button
+                  className={mode === "upload" ? "active" : ""}
+                  onClick={() => setMode("upload")}
+                  type="button"
+                >
+                  Upload file
+                </button>
+              </div>
+            </div>
+
+            {mode === "sample" ? (
+              <div className="field-group">
+                <label htmlFor="sample">Participant attachment</label>
+                <select
+                  id="sample"
+                  onChange={(event) => chooseSample(event.target.value)}
+                  value={sampleName}
+                >
+                  {samples.map((sample) => (
+                    <option key={sample.filename} value={sample.filename}>
+                      {sample.filename}
+                    </option>
+                  ))}
+                </select>
+                <div className="quick-samples">
+                  {recommendedSamples
+                    .filter((name) =>
+                      samples.some((sample) => sample.filename === name),
+                    )
+                    .map((name) => (
+                      <button
+                        key={name}
+                        onClick={() => chooseSample(name)}
+                        type="button"
+                      >
+                        {name}
+                      </button>
+                    ))}
+                </div>
+                {selectedSample && (
+                  <p className="hint">
+                    Detected role:{" "}
+                    {selectedSample.document_role === "shipping_instruction"
+                      ? "Shipping Instruction"
+                      : "Bill of Lading"}
+                  </p>
+                )}
+              </div>
+            ) : (
+              <div className="field-group">
+                <label htmlFor="file">PDF or TXT document</label>
+                <input
+                  accept=".pdf,.txt,application/pdf,text/plain"
+                  id="file"
+                  onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+                  type="file"
+                />
+                <p className="hint">Use one SI or one draft BL per run.</p>
+              </div>
+            )}
+
+            <fieldset>
+              <legend>Document role</legend>
+              <label className="radio-card">
+                <input
+                  checked={role === "shipping_instruction"}
+                  name="role"
+                  onChange={() => setRole("shipping_instruction")}
+                  type="radio"
+                />
+                <span>
+                  <strong>Shipping Instruction</strong>
+                  <small>Source instructions from the shipper</small>
+                </span>
+              </label>
+              <label className="radio-card">
+                <input
+                  checked={role === "bill_of_lading"}
+                  name="role"
+                  onChange={() => setRole("bill_of_lading")}
+                  type="radio"
+                />
+                <span>
+                  <strong>Draft Bill of Lading</strong>
+                  <small>Carrier document to be checked</small>
+                </span>
+              </label>
+            </fieldset>
+
+            <button
+              className="primary-button"
+              disabled={loading || !apiConnected}
+              type="submit"
+            >
+              {loading ? "Running pipeline…" : "Run document pipeline"}
+            </button>
+            {error && <p className="form-error">{error}</p>}
+          </form>
+
+          <section className="results-panel">
+            {!result ? (
+              <div className="empty-state">
+                <div>↗</div>
+                <h2>Results appear here</h2>
+                <p>
+                  Start with <strong>email_059_SI.pdf</strong>. It contains
+                  native text and should complete all seven fields without OCR
+                  or Gemini.
+                </p>
+              </div>
+            ) : (
+              <>
+                <div className="result-heading">
+                  <div>
+                    <p className="eyebrow">Latest run</p>
+                    <h2>{result.ingestion.filename}</h2>
+                  </div>
+                  <span
+                    className={`result-status ${pipelineComplete ? "complete" : "partial"}`}
+                  >
+                    {pipelineOutcome}
+                  </span>
+                </div>
+                <div className="metric-grid">
+                  <div>
+                    <small>Extractor</small>
+                    <strong>{result.ingestion.extractor ?? "None"}</strong>
+                  </div>
+                  <div>
+                    <small>Candidates</small>
+                    <strong>
+                      {result.candidates?.candidates.length ?? 0}/7
+                    </strong>
+                  </div>
+                  <div>
+                    <small>Verified</small>
+                    <strong>
+                      {result.verification?.fields.filter(
+                        (field) => field.verified_field,
+                      ).length ?? 0}
+                      /7
+                    </strong>
+                  </div>
+                  <div>
+                    <small>Normalized</small>
+                    <strong>
+                      {result.normalization?.document.fields.length ?? 0}/7
+                    </strong>
+                  </div>
+                </div>
+
+                {(result.ingestion.diagnostics.length > 0 ||
+                  result.candidates?.diagnostics.length) && (
+                  <div className="diagnostics">
+                    <strong>Diagnostics</strong>
+                    <ul>
+                      {[
+                        ...result.ingestion.diagnostics,
+                        ...(result.candidates?.diagnostics ?? []),
+                      ].map((item, index) => (
+                        <li key={`${item}-${index}`}>{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                <div className="field-results">
+                  {Object.entries(fieldLabels).map(([field, label]) => {
+                    const candidate = result.candidates?.candidates.find(
+                      (item) => item.field === field,
+                    );
+                    const verification = verificationMap.get(field);
+                    const normalized = normalizedMap.get(field);
+                    return (
+                      <article className="field-result" key={field}>
+                        <div>
+                          <small>{label}</small>
+                          <strong>
+                            {normalized
+                              ? displayNormalized(normalized)
+                              : (candidate?.raw_value ?? "Not found")}
+                          </strong>
+                        </div>
+                        <span
+                          className={
+                            verification?.verified_field
+                              ? "field-ok"
+                              : "field-missing"
+                          }
+                        >
+                          {verification?.verified_field
+                            ? "Verified"
+                            : verification?.issues.join(", ") || "Unavailable"}
+                        </span>
+                        {candidate && (
+                          <p>
+                            Raw: {candidate.raw_value} ·{" "}
+                            {candidate.extraction_method} ·{" "}
+                            {(candidate.confidence * 100).toFixed(1)}%
+                          </p>
+                        )}
+                      </article>
+                    );
+                  })}
+                </div>
+
+                <details>
+                  <summary>Extracted document text</summary>
+                  <pre>
+                    {result.ingestion.extracted_text ||
+                      "No readable text was extracted."}
+                  </pre>
+                </details>
+                <details>
+                  <summary>Complete JSON response</summary>
+                  <pre>{JSON.stringify(result, null, 2)}</pre>
+                </details>
+              </>
+            )}
+          </section>
+        </div>
+      </section>
     </main>
   );
 }
