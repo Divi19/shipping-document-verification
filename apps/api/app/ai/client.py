@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 API_KEY_ENV = "GEMINI_API_KEY"
 MODEL_ENV = "GEMINI_MODEL"
-DEFAULT_MODEL = "gemini-2.0-flash"
+DEFAULT_MODEL = "gemini-2.5-flash-lite"
 
 _JSON_BLOCK = re.compile(r"\{.*\}", re.DOTALL)
 

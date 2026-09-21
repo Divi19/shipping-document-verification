@@ -1,5 +1,10 @@
-# Local hackathon datasets and organizer-only evaluation materials
-/local-data/
+# Track only the participant-safe runtime inbox and attachments. Keep loaders,
+# submissions, generated bundles, and organizer-only evaluation material local.
+/local-data/*
+!/local-data/sdoc-hackathon-bundle/
+/local-data/sdoc-hackathon-bundle/*
+!/local-data/sdoc-hackathon-bundle/inbox/
+!/local-data/sdoc-hackathon-bundle/attachments/
 
 # Local secrets
 .env
