@@ -593,6 +593,7 @@ export interface components {
          * @description List-view row: enough to triage without loading every document.
          */
         CaseSummary: {
+            automated_outcome: components["schemas"]["CaseOutcome"];
             /** Category */
             category: string;
             /** Defect Fields */
