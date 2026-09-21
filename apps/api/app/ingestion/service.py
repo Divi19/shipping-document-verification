@@ -153,6 +153,11 @@ class DocumentIngestionService:
 
         # Extract content
         extracted = extractor.extract_bytes(content, filename)
+        # Keep a record of which reader produced this text. Extractors that
+        # choose between strategies (Docling, vision) set their own value.
+        extracted.metadata.setdefault("extractor", extractor_name)
+        # The filename travels with the content so evidence can name its source.
+        extracted.metadata.setdefault("source_filename", extracted.source_filename or filename)
 
         # Cache result
         self.cache.set(

@@ -125,8 +125,11 @@ class TestMarkdownBuilder:
             source_filename="test.txt",
         )
 
-        markdown = build_simple_markdown(extracted)
+        document = build_simple_markdown(extracted)
 
+        # build_simple_markdown returns the MarkdownDocument, not a bare string:
+        # every caller uses .content/.tables/.metadata.
+        markdown = document.content
         assert "This is the main text content" in markdown
         assert "Col1" in markdown
         assert "Col2" in markdown
