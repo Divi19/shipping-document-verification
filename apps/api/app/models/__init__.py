@@ -20,10 +20,25 @@ from app.models.extraction import (
     TextSpanLocator,
 )
 from app.models.health import HealthResponse
+from app.models.verification import (
+    CandidateAssessment,
+    NormalizationRule,
+    NormalizationStep,
+    NormalizedDocument,
+    NormalizedField,
+    NormalizedIntegerValue,
+    NormalizedTextValue,
+    NormalizedWeightKgValue,
+    VerificationIssue,
+    VerificationOutcome,
+    VerifiedField,
+    VerifiedNormalizedPair,
+)
 
 __all__ = [
     "ALL_COMPARISON_FIELDS",
     "BoundingBox",
+    "CandidateAssessment",
     "ClassifiedEmail",
     "ComparisonField",
     "DocumentFieldCandidates",
@@ -34,8 +49,19 @@ __all__ = [
     "ExtractionMethod",
     "FieldCandidate",
     "HealthResponse",
+    "NormalizationRule",
+    "NormalizationStep",
+    "NormalizedDocument",
+    "NormalizedField",
+    "NormalizedIntegerValue",
+    "NormalizedTextValue",
+    "NormalizedWeightKgValue",
     "PageRegionLocator",
     "ParsedEmail",
     "TableCellLocator",
     "TextSpanLocator",
+    "VerificationIssue",
+    "VerificationOutcome",
+    "VerifiedField",
+    "VerifiedNormalizedPair",
 ]
