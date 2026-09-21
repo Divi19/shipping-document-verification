@@ -1,16 +1,18 @@
 """Tests for document ingestion service."""
 
-import pytest
 from pathlib import Path
 
-from app.ingestion.service import DocumentIngestionService, DocumentIngestionConfig
+import pytest
+
 from app.ingestion.extractors import (
     ContentType,
+    DocxExtractor,
+    IngestionStatus,
     TextExtractor,
     XLSXExtractor,
-    DocxExtractor,
 )
 from app.ingestion.markdown_builder import build_simple_markdown
+from app.ingestion.service import DocumentIngestionConfig, DocumentIngestionService
 
 
 class TestTextExtractor:
@@ -118,9 +120,7 @@ class TestMarkdownBuilder:
 
         extracted = ExtractedContent(
             text="This is the main text content.",
-            tables=[
-                Table(headers=["Col1", "Col2"], rows=[["A", "B"], ["C", "D"]])
-            ],
+            tables=[Table(headers=["Col1", "Col2"], rows=[["A", "B"], ["C", "D"]])],
             content_type=ContentType.TEXT,
             source_filename="test.txt",
         )
@@ -153,14 +153,15 @@ class TestDocumentIngestionService:
         result = service.ingest_text("This is test content.\nWith multiple lines.")
 
         assert "This is test content" in result.content
-        assert result.metadata["extractor"] == "TextExtractor"
+        assert result.status == IngestionStatus.SUCCESS
+        assert result.source_filename == "input.txt"
 
     def test_ingest_generic_text_source(self, service):
         """Test the simple generic ingestion entry point used by callers."""
         result = service.ingest("This is pasted text from a user copy\nwith a second line.")
 
         assert "This is pasted text" in result.content
-        assert result.metadata["extractor"] == "TextExtractor"
+        assert result.status == IngestionStatus.SUCCESS
 
     def test_ingest_txt_file(self, service, tmp_path):
         """Test ingesting a text file."""
@@ -170,7 +171,7 @@ class TestDocumentIngestionService:
         result = service.ingest_file(test_file)
 
         assert "File content here" in result.content
-        assert result.source_filename == "sample.txt" or "sample.txt" in str(result.metadata)
+        assert result.source_filename == "sample.txt"
 
     def test_ingest_xlsx_file(self, service, tmp_path):
         """Test ingesting an Excel file."""
@@ -217,8 +218,26 @@ class TestDocumentIngestionService:
         result2 = service.ingest_file(test_file)
 
         assert result1.content == result2.content
+        assert result2.content_type == ContentType.TEXT
+        assert result2.status == IngestionStatus.SUCCESS
         stats = service.get_cache_stats()
         assert stats["entry_count"] > 0
+
+    def test_structured_extraction_is_available_before_markdown(self, service):
+        """Expose structured content for downstream field extraction."""
+        result = service.extract_bytes(b"Shipper: Example Trading", "sample.txt")
+
+        assert result.text == "Shipper: Example Trading"
+        assert result.content_type == ContentType.TEXT
+        assert result.status == IngestionStatus.SUCCESS
+
+    def test_unknown_binary_has_typed_unsupported_result(self, service):
+        """Unknown binary input should not be decoded as plain text."""
+        result = service.ingest_bytes(b"\x00\x01\x02\xff", "sample.bin")
+
+        assert result.status == IngestionStatus.UNSUPPORTED
+        assert result.content_type == ContentType.UNKNOWN
+        assert result.diagnostics
 
 
 # Integration tests with real sample files (if available)
@@ -243,7 +262,10 @@ class TestIntegrationWithSampleFiles:
 
         result = service.ingest_file(sample_file)
         assert len(result.content) > 0
-        assert "email_001_BL.txt" in str(result.metadata) or result.metadata.get("source_filename") == "email_001_BL.txt"
+        assert (
+            "email_001_BL.txt" in str(result.metadata)
+            or result.metadata.get("source_filename") == "email_001_BL.txt"
+        )
 
     def test_sample_xlsx_attachment(self, service):
         """Test with a real XLSX attachment from sample data."""

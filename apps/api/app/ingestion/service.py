@@ -4,17 +4,16 @@ import asyncio
 import logging
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import Optional
 
+from .cache import DocumentCache
 from .extractors import (
     ContentType,
-    DocumentExtractor,
     ExtractedContent,
+    IngestionStatus,
     get_extractor,
 )
 from .extractors.base import DocumentExtractor as BaseExtractor
-from .cache import DocumentCache, get_cache
-from .markdown_builder import MarkdownBuilder, MarkdownDocument, build_simple_markdown
+from .markdown_builder import MarkdownBuilder, MarkdownDocument
 
 logger = logging.getLogger(__name__)
 
@@ -24,8 +23,8 @@ class DocumentIngestionConfig:
 
     def __init__(
         self,
-        gemini_api_key: Optional[str] = None,
-        cache_dir: Optional[Path] = None,
+        gemini_api_key: str | None = None,
+        cache_dir: Path | None = None,
         cache_size_gb: float = 1.0,
         vision_fallback_threshold: float = 0.3,
         enable_vision_fallback: bool = True,
@@ -44,17 +43,16 @@ class DocumentIngestionConfig:
 class DocumentIngestionService:
     """Main service for document ingestion."""
 
-    def __init__(self, config: Optional[DocumentIngestionConfig] = None):
+    def __init__(self, config: DocumentIngestionConfig | None = None):
         self.config = config or DocumentIngestionConfig()
-        self._cache: Optional[DocumentCache] = None
+        self._cache: DocumentCache | None = None
         self._executor = ThreadPoolExecutor(max_workers=self.config.max_concurrent)
         self._extractors: dict[ContentType, BaseExtractor] = {}
 
     def ingest(
         self,
         source: str | bytes | bytearray | Path | object,
-        filename: Optional[str] = None,
-        content_type: Optional[ContentType | str] = None,
+        filename: str | None = None,
     ) -> MarkdownDocument:
         """Simple public entry point for any supported document input.
 
@@ -90,7 +88,7 @@ class DocumentIngestionService:
     def cache(self) -> DocumentCache:
         """Get or create cache instance."""
         if self._cache is None:
-            self._cache = get_cache(self.config.cache_dir, self.config.cache_size_gb)
+            self._cache = DocumentCache(self.config.cache_dir, self.config.cache_size_gb)
         return self._cache
 
     def _get_extractor(self, content_type: ContentType) -> BaseExtractor:
@@ -131,11 +129,20 @@ class DocumentIngestionService:
         Returns:
             MarkdownDocument with extracted content
         """
-        # Detect content type
+        extracted = self.extract_bytes(content, filename)
+        return MarkdownBuilder(include_images=False).build(extracted)
+
+    def extract_bytes(self, content: bytes, filename: str) -> ExtractedContent:
+        """Extract structured content without flattening it to Markdown."""
         content_type = BaseExtractor.from_bytes(content, filename)
         if content_type == ContentType.UNKNOWN:
-            content_type = ContentType.TEXT
-        logger.info(f"Ingesting {filename} as {content_type.value}")
+            return ExtractedContent(
+                content_type=ContentType.UNKNOWN,
+                source_filename=filename,
+                status=IngestionStatus.UNSUPPORTED,
+                diagnostics=["The attachment type is not supported."],
+            )
+        logger.info("Ingesting %s as %s", filename, content_type.value)
 
         # Check cache first
         extractor = self._get_extractor(content_type)
@@ -148,11 +155,27 @@ class DocumentIngestionService:
             enable_vision_fallback=self.config.enable_vision_fallback,
         )
         if cached:
-            logger.info(f"Cache hit for {filename}")
-            return build_simple_markdown(cached)
+            logger.info("Cache hit for %s", filename)
+            return cached
 
-        # Extract content
-        extracted = extractor.extract_bytes(content, filename)
+        try:
+            extracted = extractor.extract_bytes(content, filename)
+        except Exception as exc:
+            logger.exception("Document extraction failed for %s", filename)
+            extracted = ExtractedContent(
+                content_type=content_type,
+                source_filename=filename,
+                status=IngestionStatus.FAILED,
+                diagnostics=[f"{type(exc).__name__}: {exc}"],
+            )
+
+        if (
+            extracted.status == IngestionStatus.SUCCESS
+            and not extracted.text.strip()
+            and not extracted.tables
+        ):
+            extracted.status = IngestionStatus.UNREADABLE
+            extracted.diagnostics.append("No readable text or tables were extracted.")
 
         # Cache result
         self.cache.set(
@@ -163,8 +186,7 @@ class DocumentIngestionService:
             enable_vision_fallback=self.config.enable_vision_fallback,
         )
 
-        # Build markdown
-        return build_simple_markdown(extracted)
+        return extracted
 
     def ingest_text(self, text: str, filename: str = "input.txt") -> MarkdownDocument:
         """
@@ -182,12 +204,12 @@ class DocumentIngestionService:
 
     async def ingest_file_async(self, file_path: Path) -> MarkdownDocument:
         """Async version of ingest_file."""
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         return await loop.run_in_executor(self._executor, self.ingest_file, file_path)
 
     async def ingest_bytes_async(self, content: bytes, filename: str) -> MarkdownDocument:
         """Async version of ingest_bytes."""
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         return await loop.run_in_executor(self._executor, self.ingest_bytes, content, filename)
 
     async def ingest_multiple_async(self, files: list[tuple[bytes, str]]) -> list[MarkdownDocument]:
@@ -195,7 +217,7 @@ class DocumentIngestionService:
         tasks = [self.ingest_bytes_async(content, filename) for content, filename in files]
         return await asyncio.gather(*tasks)
 
-    def get_cache_stats(self) -> dict:
+    def get_cache_stats(self) -> dict[str, object]:
         """Get cache statistics."""
         return self.cache.stats()
 
@@ -203,7 +225,7 @@ class DocumentIngestionService:
         """Clear the cache."""
         return self.cache.clear()
 
-    def shutdown(self):
+    def shutdown(self) -> None:
         """Shutdown the service."""
         self._executor.shutdown(wait=True)
         if self._cache:
@@ -211,10 +233,12 @@ class DocumentIngestionService:
 
 
 # Global service instance (for FastAPI dependency injection)
-_service_instance: Optional[DocumentIngestionService] = None
+_service_instance: DocumentIngestionService | None = None
 
 
-def get_document_service(config: Optional[DocumentIngestionConfig] = None) -> DocumentIngestionService:
+def get_document_service(
+    config: DocumentIngestionConfig | None = None,
+) -> DocumentIngestionService:
     """Get or create global document ingestion service."""
     global _service_instance
     if _service_instance is None:
@@ -222,7 +246,7 @@ def get_document_service(config: Optional[DocumentIngestionConfig] = None) -> Do
     return _service_instance
 
 
-def set_document_service(service: DocumentIngestionService):
+def set_document_service(service: DocumentIngestionService) -> None:
     """Set global document ingestion service (for testing)."""
     global _service_instance
     _service_instance = service
@@ -230,17 +254,8 @@ def set_document_service(service: DocumentIngestionService):
 
 def ingest_document(
     source: str | bytes | bytearray | Path | object,
-    filename: Optional[str] = None,
-    config: Optional[DocumentIngestionConfig] = None,
-) -> MarkdownDocument:
-    """Convenience helper for the rest of the pipeline."""
-    return get_document_service(config).ingest(source, filename=filename)
-
-
-def ingest_document(
-    source: str | bytes | bytearray | Path | object,
-    filename: Optional[str] = None,
-    config: Optional[DocumentIngestionConfig] = None,
+    filename: str | None = None,
+    config: DocumentIngestionConfig | None = None,
 ) -> MarkdownDocument:
     """Convenience helper for the rest of the pipeline."""
     return get_document_service(config).ingest(source, filename=filename)

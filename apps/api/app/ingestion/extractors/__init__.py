@@ -4,18 +4,20 @@ from .base import (
     ContentType,
     DocumentExtractor,
     ExtractedContent,
-    Table,
     Image,
+    IngestionStatus,
+    Table,
 )
-from .text_extractor import TextExtractor
-from .xlsx_extractor import XLSXExtractor
 from .docx_extractor import DocxExtractor
 from .pdf_extractor import PDFExtractor
+from .text_extractor import TextExtractor
+from .xlsx_extractor import XLSXExtractor
 
 __all__ = [
     "ContentType",
     "DocumentExtractor",
     "ExtractedContent",
+    "IngestionStatus",
     "Table",
     "Image",
     "TextExtractor",

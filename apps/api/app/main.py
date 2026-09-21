@@ -1,15 +1,17 @@
-from fastapi import FastAPI, UploadFile, File
-from pydantic import BaseModel
-from typing import Optional
+from typing import Annotated
 
-from app.models.health import HealthResponse
-from app.models.email.schemas import ClassifiedEmail
+from fastapi import Depends, FastAPI, File, UploadFile
+from pydantic import BaseModel, Field
+
+from app.agents.email_classifier.classifier import EmailClassifier
+from app.ingestion.extractors import IngestionStatus
 from app.ingestion.parser import EmailParser
 from app.ingestion.service import (
     DocumentIngestionService,
     get_document_service,
 )
-from app.agents.email_classifier.classifier import EmailClassifier
+from app.models.email.schemas import ClassifiedEmail
+from app.models.health import HealthResponse
 
 app = FastAPI(
     title="Shipping Document Verification API",
@@ -20,21 +22,31 @@ app = FastAPI(
 # Document ingestion models
 class IngestTextRequest(BaseModel):
     """Request model for text ingestion."""
+
     text: str
-    filename: Optional[str] = "input.txt"
+    filename: str = "input.txt"
 
 
 class IngestResponse(BaseModel):
     """Response model for document ingestion."""
+
     markdown: str
-    metadata: dict
+    metadata: dict[str, object]
     tables_count: int
     images_count: int
+    status: IngestionStatus
+    diagnostics: list[str] = Field(default_factory=list)
 
 
 def get_ingestion_service() -> DocumentIngestionService:
     """Dependency for getting document ingestion service."""
     return get_document_service()
+
+
+IngestionServiceDependency = Annotated[
+    DocumentIngestionService,
+    Depends(get_ingestion_service),
+]
 
 
 @app.get("/health", response_model=HealthResponse, tags=["system"])
@@ -55,6 +67,7 @@ def classify_emails(inbox_path: str = "sdoc-data") -> list[ClassifiedEmail]:
 def classify_email(email_id: str, inbox_path: str = "sdoc-data") -> ClassifiedEmail:
     """Classify a single email by ID."""
     from pathlib import Path
+
     parser = EmailParser(f"{inbox_path}/inbox")
     email = parser.parse_file(Path(f"{inbox_path}/inbox/{email_id}.json"))
     classifier = EmailClassifier()
@@ -64,17 +77,14 @@ def classify_email(email_id: str, inbox_path: str = "sdoc-data") -> ClassifiedEm
 # Document Ingestion Endpoints
 @app.post("/ingest/document", response_model=IngestResponse, tags=["ingestion"])
 async def ingest_document(
-    file: UploadFile = File(...),
-    service: DocumentIngestionService = None,
+    file: Annotated[UploadFile, File()],
+    service: IngestionServiceDependency,
 ) -> IngestResponse:
     """
     Ingest a document file (PDF, DOCX, XLSX, TXT) and return structured markdown.
 
     Supports: PDF (including image-only), DOCX, XLSX, TXT, MD
     """
-    if service is None:
-        service = get_ingestion_service()
-
     content = await file.read()
     result = service.ingest_bytes(content, file.filename or "unknown")
 
@@ -83,22 +93,21 @@ async def ingest_document(
         metadata=result.metadata,
         tables_count=len(result.tables),
         images_count=len(result.images),
+        status=result.status,
+        diagnostics=result.diagnostics,
     )
 
 
 @app.post("/ingest/text", response_model=IngestResponse, tags=["ingestion"])
 async def ingest_text(
     request: IngestTextRequest,
-    service: DocumentIngestionService = None,
+    service: IngestionServiceDependency,
 ) -> IngestResponse:
     """
     Ingest plain text (copy-paste) and return structured markdown.
 
     Useful for pasting email content, shipping instructions, etc.
     """
-    if service is None:
-        service = get_ingestion_service()
-
     result = service.ingest_text(request.text, request.filename)
 
     return IngestResponse(
@@ -106,24 +115,28 @@ async def ingest_text(
         metadata=result.metadata,
         tables_count=len(result.tables),
         images_count=len(result.images),
+        status=result.status,
+        diagnostics=result.diagnostics,
     )
 
 
-@app.post("/ingest/email-attachments/{email_id}", response_model=dict[str, IngestResponse], tags=["ingestion"])
+@app.post(
+    "/ingest/email-attachments/{email_id}",
+    response_model=dict[str, IngestResponse],
+    tags=["ingestion"],
+)
 async def ingest_email_attachments(
     email_id: str,
+    service: IngestionServiceDependency,
     inbox_path: str = "sdoc-data",
-    service: DocumentIngestionService = None,
 ) -> dict[str, IngestResponse]:
     """
     Ingest all attachments for a specific email.
 
     Returns a dict mapping attachment filename to ingestion result.
     """
-    if service is None:
-        service = get_ingestion_service()
-
     from pathlib import Path
+
     parser = EmailParser(f"{inbox_path}/inbox", document_service=service)
     email = parser.parse_file(Path(f"{inbox_path}/inbox/{email_id}.json"))
 
@@ -136,6 +149,8 @@ async def ingest_email_attachments(
                 metadata=result.metadata,
                 tables_count=len(result.tables),
                 images_count=len(result.images),
+                status=result.status,
+                diagnostics=result.diagnostics,
             )
         except Exception as e:
             results[attachment.filename] = IngestResponse(
@@ -143,23 +158,23 @@ async def ingest_email_attachments(
                 metadata={"error": str(e)},
                 tables_count=0,
                 images_count=0,
+                status=IngestionStatus.FAILED,
+                diagnostics=[f"{type(e).__name__}: {e}"],
             )
 
     return results
 
 
 @app.get("/ingest/cache/stats", tags=["ingestion"])
-def get_cache_stats(service: DocumentIngestionService = None) -> dict:
+def get_cache_stats(
+    service: IngestionServiceDependency,
+) -> dict[str, object]:
     """Get document ingestion cache statistics."""
-    if service is None:
-        service = get_ingestion_service()
     return service.get_cache_stats()
 
 
 @app.delete("/ingest/cache", tags=["ingestion"])
-def clear_cache(service: DocumentIngestionService = None) -> dict:
+def clear_cache(service: IngestionServiceDependency) -> dict[str, int]:
     """Clear document ingestion cache."""
-    if service is None:
-        service = get_ingestion_service()
     cleared = service.clear_cache()
     return {"cleared_entries": cleared}

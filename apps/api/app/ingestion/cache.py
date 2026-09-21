@@ -1,13 +1,14 @@
 """Caching layer for document ingestion."""
 
 import hashlib
+import json
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import Any
 
-import diskcache
+import diskcache  # type: ignore[import-untyped]
 
-from .extractors.base import ExtractedContent
+from .extractors.base import ContentType, ExtractedContent, Image, IngestionStatus, Table
 
 logger = logging.getLogger(__name__)
 
@@ -40,18 +41,31 @@ class DocumentCache:
         """Generate SHA256 hash of content."""
         return hashlib.sha256(content).hexdigest()
 
-    def _hash_config(self, **config) -> str:
+    def _hash_config(self, **config: object) -> str:
         """Generate hash of extraction configuration."""
-        import json
         config_str = json.dumps(config, sort_keys=True)
         return hashlib.sha256(config_str.encode()).hexdigest()[:16]
+
+    @staticmethod
+    def _deserialize(cached: dict[str, Any]) -> ExtractedContent:
+        """Restore cached dictionaries to the structured ingestion dataclasses."""
+        return ExtractedContent(
+            text=str(cached.get("text", "")),
+            tables=[Table(**table) for table in cached.get("tables", [])],
+            images=[Image(**image) for image in cached.get("images", [])],
+            metadata=dict(cached.get("metadata", {})),
+            content_type=ContentType(cached.get("content_type", ContentType.UNKNOWN)),
+            source_filename=str(cached.get("source_filename", "")),
+            status=IngestionStatus(cached.get("status", IngestionStatus.SUCCESS)),
+            diagnostics=list(cached.get("diagnostics", [])),
+        )
 
     def get(
         self,
         content: bytes,
         extractor_name: str,
-        **config
-    ) -> Optional[ExtractedContent]:
+        **config: object,
+    ) -> ExtractedContent | None:
         """Get cached extraction result if available."""
         content_hash = self._hash_content(content)
         config_hash = self._hash_config(**config)
@@ -61,8 +75,7 @@ class DocumentCache:
             cached = self.cache.get(key)
             if cached:
                 logger.debug(f"Cache hit for {extractor_name} ({content_hash[:8]})")
-                # Reconstruct ExtractedContent from cached dict
-                return ExtractedContent(**cached)
+                return self._deserialize(cached)
         except Exception as e:
             logger.warning(f"Cache read error: {e}")
 
@@ -73,7 +86,7 @@ class DocumentCache:
         content: bytes,
         extractor_name: str,
         result: ExtractedContent,
-        **config
+        **config: object,
     ) -> None:
         """Cache extraction result."""
         content_hash = self._hash_content(content)
@@ -85,16 +98,29 @@ class DocumentCache:
             cached_data = {
                 "text": result.text,
                 "tables": [
-                    {"headers": t.headers, "rows": t.rows, "sheet_name": t.sheet_name, "page_number": t.page_number}
-                    for t in result.tables
+                    {
+                        "headers": table.headers,
+                        "rows": table.rows,
+                        "sheet_name": table.sheet_name,
+                        "page_number": table.page_number,
+                    }
+                    for table in result.tables
                 ],
                 "images": [
-                    {"mime_type": img.mime_type, "alt_text": img.alt_text, "page_number": img.page_number, "caption": img.caption}
-                    for img in result.images
+                    {
+                        "data": image.data,
+                        "mime_type": image.mime_type,
+                        "alt_text": image.alt_text,
+                        "page_number": image.page_number,
+                        "caption": image.caption,
+                    }
+                    for image in result.images
                 ],
                 "metadata": result.metadata,
                 "content_type": result.content_type.value,
                 "source_filename": result.source_filename,
+                "status": result.status.value,
+                "diagnostics": result.diagnostics,
             }
             self.cache.set(key, cached_data)
             logger.debug(f"Cached result for {extractor_name} ({content_hash[:8]})")
@@ -108,7 +134,7 @@ class DocumentCache:
         logger.info(f"Cleared {count} cache entries")
         return count
 
-    def stats(self) -> dict:
+    def stats(self) -> dict[str, object]:
         """Get cache statistics."""
         return {
             "size_mb": self.cache.volume() / (1024 * 1024),
@@ -116,16 +142,16 @@ class DocumentCache:
             "directory": str(self.cache_dir),
         }
 
-    def close(self):
+    def close(self) -> None:
         """Close cache connection."""
         self.cache.close()
 
 
 # Global cache instance (initialized lazily)
-_cache_instance: Optional[DocumentCache] = None
+_cache_instance: DocumentCache | None = None
 
 
-def get_cache(cache_dir: Path = None, max_size_gb: float = 1.0) -> DocumentCache:
+def get_cache(cache_dir: Path | None = None, max_size_gb: float = 1.0) -> DocumentCache:
     """Get or create global cache instance."""
     global _cache_instance
     if _cache_instance is None:

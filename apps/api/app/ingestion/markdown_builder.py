@@ -3,7 +3,7 @@
 import logging
 from dataclasses import dataclass, field
 
-from .extractors.base import ExtractedContent, Table, Image
+from .extractors.base import ContentType, ExtractedContent, Image, IngestionStatus, Table
 
 logger = logging.getLogger(__name__)
 
@@ -11,10 +11,15 @@ logger = logging.getLogger(__name__)
 @dataclass
 class MarkdownDocument:
     """Structured markdown document with metadata."""
+
     content: str
-    metadata: dict = field(default_factory=dict)
+    metadata: dict[str, object] = field(default_factory=dict)
     tables: list[Table] = field(default_factory=list)
     images: list[Image] = field(default_factory=list)
+    content_type: ContentType = ContentType.UNKNOWN
+    source_filename: str = ""
+    status: IngestionStatus = IngestionStatus.SUCCESS
+    diagnostics: list[str] = field(default_factory=list)
 
     def to_markdown(self) -> str:
         """Return full markdown content."""
@@ -63,6 +68,10 @@ class MarkdownBuilder:
             metadata=extracted.metadata,
             tables=extracted.tables,
             images=extracted.images,
+            content_type=extracted.content_type,
+            source_filename=extracted.source_filename,
+            status=extracted.status,
+            diagnostics=extracted.diagnostics,
         )
 
     def _build_metadata_section(self, extracted: ExtractedContent) -> str:

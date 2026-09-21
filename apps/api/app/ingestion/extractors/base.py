@@ -2,13 +2,13 @@
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+from enum import StrEnum
 from pathlib import Path
-from typing import Optional
-from enum import Enum
 
 
-class ContentType(str, Enum):
+class ContentType(StrEnum):
     """Supported document content types."""
+
     PDF = "application/pdf"
     DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -16,13 +16,23 @@ class ContentType(str, Enum):
     UNKNOWN = "application/octet-stream"
 
 
+class IngestionStatus(StrEnum):
+    """Outcome of converting an attachment into readable document content."""
+
+    SUCCESS = "success"
+    UNREADABLE = "unreadable"
+    UNSUPPORTED = "unsupported"
+    FAILED = "failed"
+
+
 @dataclass
 class Table:
     """Represents an extracted table."""
+
     headers: list[str]
     rows: list[list[str]]
-    sheet_name: Optional[str] = None
-    page_number: Optional[int] = None
+    sheet_name: str | None = None
+    page_number: int | None = None
 
     def to_markdown(self) -> str:
         """Convert table to GitHub-flavored markdown."""
@@ -56,7 +66,7 @@ class Table:
             # Pad row to match header length
             while len(row_escaped) < len(header_escaped):
                 row_escaped.append("")
-            lines.append("| " + " | ".join(row_escaped[:len(header_escaped)]) + " |")
+            lines.append("| " + " | ".join(row_escaped[: len(header_escaped)]) + " |")
 
         return "\n".join(lines)
 
@@ -64,22 +74,26 @@ class Table:
 @dataclass
 class Image:
     """Represents an extracted image with optional OCR text."""
+
     data: bytes
     mime_type: str
-    alt_text: Optional[str] = None
-    page_number: Optional[int] = None
-    caption: Optional[str] = None
+    alt_text: str | None = None
+    page_number: int | None = None
+    caption: str | None = None
 
 
 @dataclass
 class ExtractedContent:
     """Container for extracted document content."""
+
     text: str = ""
     tables: list[Table] = field(default_factory=list)
     images: list[Image] = field(default_factory=list)
-    metadata: dict = field(default_factory=dict)
+    metadata: dict[str, object] = field(default_factory=dict)
     content_type: ContentType = ContentType.UNKNOWN
     source_filename: str = ""
+    status: IngestionStatus = IngestionStatus.SUCCESS
+    diagnostics: list[str] = field(default_factory=list)
 
     def has_meaningful_text(self, min_chars: int = 100) -> bool:
         """Check if extracted text is substantial enough."""
