@@ -2,6 +2,8 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
+import { CaseWorkbench } from "@/app/case-workbench";
+
 type DocumentRole = "shipping_instruction" | "bill_of_lading";
 
 type PipelineSample = {
@@ -176,7 +178,7 @@ export function PipelineWorkbench({ apiConnected }: { apiConnected: boolean }) {
           <h1>Shipping Document Verification</h1>
           <p className="subtitle">
             Inspect ingestion, candidate extraction, evidence verification, and
-            normalization.
+            normalization, then run full SI-to-BL comparison and reporting.
           </p>
         </div>
         <span
@@ -201,6 +203,9 @@ export function PipelineWorkbench({ apiConnected }: { apiConnected: boolean }) {
           ["5", "Extract", "Field candidates"],
           ["6", "Verify", "Evidence checks"],
           ["7", "Normalize", "Typed values"],
+          ["8", "Compare", "SI against BL"],
+          ["QA", "Gate", "Deterministic checks"],
+          ["10", "Report", "Final result"],
         ].map(([number, title, detail]) => (
           <div className="flow-step" key={number}>
             <span>{number}</span>
@@ -445,6 +450,7 @@ export function PipelineWorkbench({ apiConnected }: { apiConnected: boolean }) {
           )}
         </section>
       </section>
+      <CaseWorkbench apiConnected={apiConnected} />
     </main>
   );
 }
