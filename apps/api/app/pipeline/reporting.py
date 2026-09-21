@@ -1,10 +1,25 @@
-"""Quality-gate and reporting output for completed pipeline cases."""
+"""Quality-gate and reporting output for completed pipeline cases.
+
+Reports describe the result that currently stands: the reviewer's resolution
+when there is one, otherwise the automated result. The automated outcome is
+always reported beside it, so a human override is never hidden.
+"""
 
 from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
-from .models import COMPARED_FIELDS, CaseOutcome, CaseRecord, FieldComparison, FieldName
+from .models import (
+    COMPARED_FIELDS,
+    CaseOutcome,
+    CaseRecord,
+    DocumentRead,
+    FieldComparison,
+    FieldName,
+    ReviewAction,
+    ReviewStatus,
+    ReviewTicket,
+)
 from .submission import SubmissionEntry, submission_entry
 
 MINIMUM_CONFIDENCE = 0.8
@@ -22,6 +37,7 @@ class ReportStatus(StrEnum):
     AWAITING_DOCUMENTS = "awaiting_documents"
     NOT_APPLICABLE = "not_applicable"
     QA_FAILED = "qa_failed"
+    UNABLE_TO_VERIFY = "unable_to_verify"
 
 
 class MatchStatus(StrEnum):
@@ -61,15 +77,21 @@ class EvidenceSummary(BaseModel):
 
 
 class FinalReport(BaseModel):
-    """Structured and human-readable final output from the reporting agent."""
+    """Structured and human-readable final output from the reporting agent.
+
+    ``outcome`` is the result that stands; ``automated_outcome`` is what the
+    pipeline decided before any human review.
+    """
 
     email_id: str
     category: str
     outcome: CaseOutcome
+    automated_outcome: CaseOutcome
     processing_status: ReportStatus
     match_status: MatchStatus
     defect_fields: list[FieldName]
-    review_status: str
+    review_status: ReviewStatus
+    review: ReviewTicket | None = None
     quality_gate: QualityGate
     comparisons: list[FieldComparison]
     evidence_summary: list[EvidenceSummary]
@@ -78,13 +100,40 @@ class FinalReport(BaseModel):
 
 
 def evaluate_quality(case: CaseRecord) -> QualityGate:
-    """Run the deterministic gate shown between comparison and reporting."""
-    if case.outcome in {CaseOutcome.NOT_APPLICABLE, CaseOutcome.AWAITING_DOCUMENTS}:
+    """Run the deterministic gate on the result that currently stands."""
+    return check_quality(
+        case.final_outcome,
+        case.documents,
+        case.final_comparisons,
+        reviewed=case.resolution is not None,
+    )
+
+
+def check_quality(
+    outcome: CaseOutcome,
+    documents: list[DocumentRead],
+    comparisons: list[FieldComparison],
+    *,
+    reviewed: bool = False,
+) -> QualityGate:
+    """Run the gate shown between comparison and reporting.
+
+    Args:
+        outcome: The outcome being released.
+        documents: The documents the case read.
+        comparisons: The comparisons behind the outcome.
+        reviewed: True when a reviewer produced the comparisons. A person read
+            the source, so an unreadable file no longer blocks the result.
+
+    Returns:
+        The gate status and every check with its detail.
+    """
+    if outcome in {CaseOutcome.NOT_APPLICABLE, CaseOutcome.AWAITING_DOCUMENTS}:
         return QualityGate(status=QualityGateStatus.NOT_APPLICABLE)
 
-    comparison_fields = [comparison.field for comparison in case.comparisons]
+    comparison_fields = [comparison.field for comparison in comparisons]
     seven_fields = len(comparison_fields) == 7 and set(comparison_fields) == set(COMPARED_FIELDS)
-    values = [value for item in case.comparisons for value in (item.si, item.bl)]
+    values = [value for item in comparisons for value in (item.si, item.bl)]
     evidence_complete = bool(values) and all(
         not value.is_present or value.evidence is not None for value in values
     )
@@ -93,7 +142,7 @@ def evaluate_quality(case: CaseRecord) -> QualityGate:
         or (value.confidence is not None and value.confidence >= MINIMUM_CONFIDENCE)
         for value in values
     )
-    mismatches = [item for item in case.comparisons if item.matches is False]
+    mismatches = [item for item in comparisons if item.matches is False]
     mismatches_explained = all(
         item.note
         and item.si.raw is not None
@@ -102,10 +151,8 @@ def evaluate_quality(case: CaseRecord) -> QualityGate:
         and item.bl.evidence is not None
         for item in mismatches
     )
-    no_unresolved = bool(case.comparisons) and all(
-        item.matches is not None for item in case.comparisons
-    )
-    documents_readable = bool(case.documents) and all(item.readable for item in case.documents)
+    no_unresolved = bool(comparisons) and all(item.matches is not None for item in comparisons)
+    documents_readable = reviewed or (bool(documents) and all(item.readable for item in documents))
 
     checks = [
         QualityCheck(
@@ -131,7 +178,11 @@ def evaluate_quality(case: CaseRecord) -> QualityGate:
         QualityCheck(
             name="no_unresolved_errors",
             passed=no_unresolved and documents_readable,
-            detail="all comparisons are decidable and both documents are readable",
+            detail=(
+                "all comparisons are decidable and a reviewer read the source documents"
+                if reviewed
+                else "all comparisons are decidable and both documents are readable"
+            ),
         ),
         QualityCheck(
             name="output_structure",
@@ -152,33 +203,43 @@ def evaluate_quality(case: CaseRecord) -> QualityGate:
 def build_report(case: CaseRecord) -> FinalReport:
     """Create the final structured report without rerunning earlier stages."""
     gate = evaluate_quality(case)
+    comparisons = case.final_comparisons
     return FinalReport(
         email_id=case.email_id,
         category=case.category.value,
-        outcome=case.outcome,
+        outcome=case.final_outcome,
+        automated_outcome=case.outcome,
         processing_status=_processing_status(case, gate),
-        match_status=_match_status(case),
-        defect_fields=case.defect_fields,
-        review_status="pending" if case.outcome is CaseOutcome.NEEDS_REVIEW else "not_required",
+        match_status=_match_status(case.final_outcome),
+        defect_fields=case.final_defect_fields,
+        review_status=case.review_status,
+        review=case.review,
         quality_gate=gate,
-        comparisons=case.comparisons,
-        evidence_summary=[_evidence_summary(item) for item in case.comparisons],
+        comparisons=comparisons,
+        evidence_summary=[_evidence_summary(item) for item in comparisons],
         submission=submission_entry(case),
         human_readable_report=render_report(case, gate),
     )
 
 
-def _match_status(case: CaseRecord) -> MatchStatus:
-    if case.outcome is CaseOutcome.VERIFIED:
+def _match_status(outcome: CaseOutcome) -> MatchStatus:
+    if outcome is CaseOutcome.VERIFIED:
         return MatchStatus.MATCH
-    if case.outcome is CaseOutcome.MISMATCH:
+    if outcome is CaseOutcome.MISMATCH:
         return MatchStatus.MISMATCH
-    if case.outcome is CaseOutcome.NEEDS_REVIEW:
+    if outcome is CaseOutcome.NEEDS_REVIEW:
         return MatchStatus.UNCERTAIN
     return MatchStatus.NOT_APPLICABLE
 
 
 def _processing_status(case: CaseRecord, gate: QualityGate) -> ReportStatus:
+    resolution = case.resolution
+    if resolution is not None:
+        # A reviewer has taken responsibility for the result, so it is final
+        # even when a check the reviewer accepted still fails.
+        if resolution.action is ReviewAction.UNABLE_TO_VERIFY:
+            return ReportStatus.UNABLE_TO_VERIFY
+        return ReportStatus.COMPLETE
     if gate.status is QualityGateStatus.FAIL and case.outcome is not CaseOutcome.NEEDS_REVIEW:
         return ReportStatus.QA_FAILED
     return {
@@ -213,32 +274,51 @@ def _evidence_summary(comparison: FieldComparison) -> EvidenceSummary:
 def render_report(case: CaseRecord, gate: QualityGate | None = None) -> str:
     """Render a concise Markdown report for an operator."""
     quality = gate or evaluate_quality(case)
+    outcome = case.final_outcome
+    comparisons = case.final_comparisons
     lines = [
         f"# Shipping document verification: {case.email_id}",
         "",
         f"- Category: {case.category.value}",
-        f"- Outcome: {case.outcome.value}",
-        f"- Quality gate: {quality.status.value}",
+        f"- Outcome: {outcome.value}",
     ]
-    if case.review_reason is not None:
-        lines.append(f"- Review reason: {case.review_reason.value}")
+    if case.resolution is not None:
+        automated = case.outcome.value
+        if case.review_reason is not None:
+            automated += f" ({case.review_reason.value})"
+        lines.append(f"- Automated outcome: {automated}")
+    lines.append(f"- Quality gate: {quality.status.value}")
+    if case.final_review_reason is not None:
+        lines.append(f"- Review reason: {case.final_review_reason.value}")
 
-    if case.outcome is CaseOutcome.VERIFIED:
+    if outcome is CaseOutcome.VERIFIED:
         lines.extend(["", "## Result", "No mismatch detected. All seven fields were verified."])
-    elif case.outcome is CaseOutcome.MISMATCH:
+    elif outcome is CaseOutcome.MISMATCH:
         lines.extend(["", "## Result", "Mismatch detected in the following fields:", ""])
-        for comparison in case.comparisons:
+        for comparison in comparisons:
             if comparison.is_defect:
                 lines.extend([*_comparison_lines(comparison), ""])
-    elif case.outcome is CaseOutcome.NEEDS_REVIEW:
-        lines.extend(["", "## Result", "The comparison is uncertain and requires review."])
-        for comparison in case.comparisons:
+    elif outcome is CaseOutcome.NEEDS_REVIEW:
+        closed = case.resolution is not None
+        lines.extend(
+            [
+                "",
+                "## Result",
+                "A reviewer could not verify this case."
+                if closed
+                else "The comparison is uncertain and requires review.",
+            ]
+        )
+        for comparison in comparisons:
             if comparison.matches is None:
                 lines.extend(["", *_comparison_lines(comparison)])
-    elif case.outcome is CaseOutcome.AWAITING_DOCUMENTS:
+    elif outcome is CaseOutcome.AWAITING_DOCUMENTS:
         lines.extend(["", "## Result", "Awaiting the required documents."])
     else:
         lines.extend(["", "## Result", "No document comparison was required."])
+
+    if case.review is not None:
+        lines.extend(["", *_review_lines(case.review)])
 
     if quality.checks:
         lines.extend(["", "## Quality assurance"])
@@ -257,10 +337,28 @@ def _comparison_lines(comparison: FieldComparison) -> list[str]:
         lines.append(f"- Reason: {comparison.note}")
     for label, value in (("SI", comparison.si), ("BL", comparison.bl)):
         if value.evidence is not None:
-            lines.append(
-                f"- {label} evidence: {value.evidence.source}, {value.evidence.locator}"
-            )
+            lines.append(f"- {label} evidence: {value.evidence.source}, {value.evidence.locator}")
             lines.append(f"  {value.evidence.snippet}")
+    return lines
+
+
+def _review_lines(ticket: ReviewTicket) -> list[str]:
+    """List the escalation and every reviewer decision, oldest first."""
+    lines = [
+        "## Human review",
+        f"- Status: {ticket.status.value}",
+        f"- Assigned to: {ticket.team.value} ({ticket.priority.value} priority)",
+        f"- Escalation: {ticket.summary}",
+    ]
+    for decision in ticket.decisions:
+        stamp = decision.at.strftime("%Y-%m-%d %H:%M UTC")
+        entry = f"- {stamp} — {decision.action.value} by {decision.reviewer}"
+        lines.append(f"{entry}: {decision.note}" if decision.note else entry)
+        for correction in decision.corrections:
+            lines.append(
+                f"  - {correction.field.value} ({correction.side.value.upper()}): "
+                f"{_value(correction.previous)} -> {correction.value}"
+            )
     return lines
 
 

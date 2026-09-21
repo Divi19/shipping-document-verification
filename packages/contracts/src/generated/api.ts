@@ -44,6 +44,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/cases/run-inbox": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Run Inbox
+         * @description Process every inbox email not processed yet, and fill the review queue.
+         *
+         *     Cases already in the store are skipped, so a second pass duplicates no work
+         *     and does not call a configured model again. Use ``/cases/{id}/run`` to
+         *     retry one case.
+         */
+        post: operations["run_inbox_cases_run_inbox_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/cases/{email_id}": {
         parameters: {
             query?: never;
@@ -84,26 +108,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/cases/{email_id}/review": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Review Case
-         * @description Record a reviewer's decision and update the stored case.
-         */
-        post: operations["review_case_cases__email_id__review_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/cases/{email_id}/run": {
         parameters: {
             query?: never;
@@ -119,6 +123,8 @@ export interface paths {
          *
          *     A case that needs review is saved here too, with its reason and evidence,
          *     so it appears in the queue immediately rather than after a human replies.
+         *     Running a case again is the controlled retry: earlier attempts and any
+         *     human decision stay on the record.
          */
         post: operations["run_case_cases__email_id__run_post"];
         delete?: never;
@@ -390,6 +396,92 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/review-queue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Review Queue
+         * @description List queued cases, most urgent first, optionally in one status.
+         */
+        get: operations["list_review_queue_review_queue_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/review-queue/{email_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Review Package
+         * @description Return the complete review package for one queued case.
+         */
+        get: operations["get_review_package_review_queue__email_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/review-queue/{email_id}/attachments/{filename}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Attachment
+         * @description Serve one of the email's original attachments, so a reviewer can read the source.
+         *
+         *     Only files the email itself references are served, and only from inside
+         *     the dataset directory.
+         */
+        get: operations["get_attachment_review_queue__email_id__attachments__filename__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/review-queue/{email_id}/decision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Record Decision
+         * @description Record a reviewer's decision and return the updated package and report.
+         *
+         *     A decision the case cannot accept is refused whole: 409 when the case is
+         *     not open for review, 422 when the decision itself is invalid.
+         */
+        post: operations["record_decision_review_queue__email_id__decision_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -457,6 +549,10 @@ export interface components {
         /**
          * CaseRecord
          * @description Everything known about one email.
+         *
+         *     ``outcome``, ``review_reason`` and ``comparisons`` are the automated result.
+         *     A reviewer's resolution is kept on ``review``; the ``final_*`` properties
+         *     return whichever result currently stands.
          */
         CaseRecord: {
             /** Attempts */
@@ -479,8 +575,13 @@ export interface components {
             /** Email Id */
             email_id: string;
             outcome: components["schemas"]["CaseOutcome"];
-            review?: components["schemas"]["ReviewDecision"] | null;
+            review?: components["schemas"]["ReviewTicket"] | null;
             review_reason?: components["schemas"]["ReviewReason"] | null;
+            /**
+             * Subject
+             * @default
+             */
+            subject: string;
             /**
              * Updated At
              * Format: date-time
@@ -501,6 +602,7 @@ export interface components {
             outcome: components["schemas"]["CaseOutcome"];
             /** Review Reason */
             review_reason: string | null;
+            review_status: components["schemas"]["ReviewStatus"];
             /** Reviewed */
             reviewed: boolean;
         };
@@ -536,11 +638,34 @@ export interface components {
          */
         ContentType: "application/pdf" | "application/vnd.openxmlformats-officedocument.wordprocessingml.document" | "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" | "text/plain" | "application/octet-stream";
         /**
+         * CorrectionRequest
+         * @description A value the reviewer read from one of the documents.
+         */
+        CorrectionRequest: {
+            field: components["schemas"]["FieldName"];
+            side: components["schemas"]["DocumentSide"];
+            /** Value */
+            value: string;
+        };
+        /**
          * DecidedBy
          * @description Which mechanism produced a decision.
          * @enum {string}
          */
         DecidedBy: "rule" | "llm";
+        /**
+         * DecisionRequest
+         * @description A reviewer's decision on a queued case.
+         */
+        DecisionRequest: {
+            action: components["schemas"]["ReviewAction"];
+            /** Corrections */
+            corrections?: components["schemas"]["CorrectionRequest"][];
+            /** Note */
+            note?: string | null;
+            /** Reviewer */
+            reviewer: string;
+        };
         /**
          * DocumentFieldCandidates
          * @description All field candidates extracted from one assigned document.
@@ -602,6 +727,12 @@ export interface components {
          * @enum {string}
          */
         "DocumentRole-Input": "shipping_instruction" | "bill_of_lading";
+        /**
+         * DocumentSide
+         * @description Which document of the pair a value belongs to.
+         * @enum {string}
+         */
+        DocumentSide: "si" | "bl";
         /**
          * DocumentVerificationResult
          * @description Complete Box 6 evidence decision for one document.
@@ -738,8 +869,12 @@ export interface components {
         /**
          * FinalReport
          * @description Structured and human-readable final output from the reporting agent.
+         *
+         *     ``outcome`` is the result that stands; ``automated_outcome`` is what the
+         *     pipeline decided before any human review.
          */
         FinalReport: {
+            automated_outcome: components["schemas"]["CaseOutcome"];
             /** Category */
             category: string;
             /** Comparisons */
@@ -756,8 +891,8 @@ export interface components {
             outcome: components["schemas"]["CaseOutcome"];
             processing_status: components["schemas"]["ReportStatus"];
             quality_gate: components["schemas"]["QualityGate"];
-            /** Review Status */
-            review_status: string;
+            review?: components["schemas"]["ReviewTicket"] | null;
+            review_status: components["schemas"]["ReviewStatus"];
             submission: components["schemas"]["SubmissionEntry"];
         };
         /** HTTPValidationError */
@@ -779,6 +914,22 @@ export interface components {
              * @constant
              */
             status: "ok";
+        };
+        /**
+         * InboxRun
+         * @description What one pass over the inbox did.
+         */
+        InboxRun: {
+            /** Outcomes */
+            outcomes?: {
+                [key: string]: number;
+            };
+            /** Processed */
+            processed: number;
+            /** Queued For Review */
+            queued_for_review: number;
+            /** Skipped */
+            skipped: number;
         };
         /**
          * IngestResponse
@@ -1003,12 +1154,13 @@ export interface components {
          * ReportStatus
          * @enum {string}
          */
-        ReportStatus: "complete" | "needs_review" | "awaiting_documents" | "not_applicable" | "qa_failed";
+        ReportStatus: "complete" | "needs_review" | "awaiting_documents" | "not_applicable" | "qa_failed" | "unable_to_verify";
         /**
          * ReviewAction
+         * @description What a reviewer can decide about a queued case.
          * @enum {string}
          */
-        ReviewAction: "confirmed" | "corrected" | "unable_to_verify";
+        ReviewAction: "confirmed" | "corrected" | "information_requested" | "unable_to_verify";
         /**
          * ReviewDecision
          * @description What a human decided about an escalated case.
@@ -1020,12 +1172,108 @@ export interface components {
              * Format: date-time
              */
             at?: string;
-            /** Corrected Fields */
-            corrected_fields?: components["schemas"]["FieldName"][];
+            /** Corrections */
+            corrections?: components["schemas"]["ValueCorrection"][];
             /** Note */
             note?: string | null;
             /** Reviewer */
             reviewer: string;
+        };
+        /**
+         * ReviewEmail
+         * @description The original email record.
+         */
+        ReviewEmail: {
+            /** Attachments */
+            attachments: string[];
+            /** Body */
+            body: string;
+            /** Email Id */
+            email_id: string;
+            /** From Address */
+            from_address: string;
+            /** Subject */
+            subject: string;
+        };
+        /**
+         * ReviewPackage
+         * @description Everything a reviewer needs to decide one case.
+         */
+        ReviewPackage: {
+            /** Allowed Actions */
+            allowed_actions: components["schemas"]["ReviewAction"][];
+            /** Attempts */
+            attempts: components["schemas"]["StageAttempt"][];
+            automated_outcome: components["schemas"]["CaseOutcome"];
+            automated_review_reason: components["schemas"]["ReviewReason"] | null;
+            /** Comparisons */
+            comparisons: components["schemas"]["FieldComparison"][];
+            /** Documents */
+            documents: components["schemas"]["DocumentRead"][];
+            email: components["schemas"]["ReviewEmail"];
+            report: components["schemas"]["FinalReport"];
+            ticket: components["schemas"]["ReviewTicket"];
+        };
+        /**
+         * ReviewPriority
+         * @description How soon a reviewer should pick up a queued case.
+         * @enum {string}
+         */
+        ReviewPriority: "high" | "normal" | "low";
+        /**
+         * ReviewQueue
+         * @description The queue, most urgent first, with counts across every status.
+         */
+        ReviewQueue: {
+            counts: components["schemas"]["ReviewQueueCounts"];
+            /** Items */
+            items: components["schemas"]["ReviewQueueItem"][];
+        };
+        /**
+         * ReviewQueueCounts
+         * @description How many tickets are in each status.
+         */
+        ReviewQueueCounts: {
+            /**
+             * Awaiting Information
+             * @default 0
+             */
+            awaiting_information: number;
+            /**
+             * Pending
+             * @default 0
+             */
+            pending: number;
+            /**
+             * Resolved
+             * @default 0
+             */
+            resolved: number;
+        };
+        /**
+         * ReviewQueueItem
+         * @description One queued case, with enough to choose what to open next.
+         */
+        ReviewQueueItem: {
+            /** Email Id */
+            email_id: string;
+            last_decision: components["schemas"]["ReviewDecision"] | null;
+            /**
+             * Opened At
+             * Format: date-time
+             */
+            opened_at: string;
+            outcome: components["schemas"]["CaseOutcome"];
+            priority: components["schemas"]["ReviewPriority"];
+            /** Questionable Fields */
+            questionable_fields: components["schemas"]["FieldName"][];
+            reason: components["schemas"]["ReviewReason"] | null;
+            status: components["schemas"]["ReviewStatus"];
+            /** Subject */
+            subject: string;
+            /** Summary */
+            summary: string;
+            team: components["schemas"]["ReviewTeam"];
         };
         /**
          * ReviewReason
@@ -1034,17 +1282,64 @@ export interface components {
          */
         ReviewReason: "wrong_doc_type" | "missing_attachment" | "unreadable" | "missing_value";
         /**
-         * ReviewRequest
-         * @description A reviewer's decision on an escalated case.
+         * ReviewResolution
+         * @description The result a reviewer's decision produced.
+         *
+         *     It sits beside the automated result and never replaces it on the record.
          */
-        ReviewRequest: {
+        ReviewResolution: {
             action: components["schemas"]["ReviewAction"];
-            /** Corrected Fields */
-            corrected_fields?: components["schemas"]["FieldName"][];
-            /** Note */
-            note?: string | null;
+            /**
+             * At
+             * Format: date-time
+             */
+            at?: string;
+            /** Comparisons */
+            comparisons?: components["schemas"]["FieldComparison"][];
+            outcome: components["schemas"]["CaseOutcome"];
+            review_reason?: components["schemas"]["ReviewReason"] | null;
             /** Reviewer */
             reviewer: string;
+        };
+        /**
+         * ReviewStatus
+         * @description Where a case stands in the human review queue.
+         * @enum {string}
+         */
+        ReviewStatus: "not_required" | "pending" | "awaiting_information" | "resolved";
+        /**
+         * ReviewTeam
+         * @description Who owns a queued case.
+         * @enum {string}
+         */
+        ReviewTeam: "document_intake" | "field_verification";
+        /**
+         * ReviewTicket
+         * @description A case in the human review queue: why it is there, who owns it, what was decided.
+         */
+        ReviewTicket: {
+            /** Closed At */
+            closed_at?: string | null;
+            /** Decisions */
+            decisions?: components["schemas"]["ReviewDecision"][];
+            /** Failed Checks */
+            failed_checks?: string[];
+            /**
+             * Opened At
+             * Format: date-time
+             */
+            opened_at?: string;
+            priority: components["schemas"]["ReviewPriority"];
+            /** Questionable Fields */
+            questionable_fields?: components["schemas"]["FieldName"][];
+            reason?: components["schemas"]["ReviewReason"] | null;
+            recommended_action: components["schemas"]["ReviewAction"];
+            resolution?: components["schemas"]["ReviewResolution"] | null;
+            /** @default pending */
+            status: components["schemas"]["ReviewStatus"];
+            /** Summary */
+            summary: string;
+            team: components["schemas"]["ReviewTeam"];
         };
         /**
          * StageAttempt
@@ -1130,6 +1425,18 @@ export interface components {
             msg: string;
             /** Error Type */
             type: string;
+        };
+        /**
+         * ValueCorrection
+         * @description One value a reviewer read from a source document.
+         */
+        ValueCorrection: {
+            field: components["schemas"]["FieldName"];
+            /** Previous */
+            previous?: string | null;
+            side: components["schemas"]["DocumentSide"];
+            /** Value */
+            value: string;
         };
         /**
          * VerificationIssue
@@ -1225,6 +1532,26 @@ export interface operations {
             };
         };
     };
+    run_inbox_cases_run_inbox_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InboxRun"];
+                };
+            };
+        };
+    };
     get_case_cases__email_id__get: {
         parameters: {
             query?: never;
@@ -1274,41 +1601,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FinalReport"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    review_case_cases__email_id__review_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                email_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ReviewRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CaseRecord"];
                 };
             };
             /** @description Validation Error */
@@ -1730,6 +2022,133 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PipelineSample"][];
+                };
+            };
+        };
+    };
+    list_review_queue_review_queue_get: {
+        parameters: {
+            query?: {
+                status?: components["schemas"]["ReviewStatus"] | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewQueue"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_review_package_review_queue__email_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                email_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewPackage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_attachment_review_queue__email_id__attachments__filename__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                email_id: string;
+                filename: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    record_decision_review_queue__email_id__decision_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                email_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DecisionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewPackage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

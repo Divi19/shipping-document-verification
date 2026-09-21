@@ -90,6 +90,7 @@ def test_case_is_stored_and_listed(client: TestClient) -> None:
     listed = client.get("/cases").json()
     assert [row["email_id"] for row in listed] == ["email_004"]
     assert listed[0]["defect_fields"] == ["consignee", "notify_party"]
+    assert listed[0]["review_status"] == "not_required"  # a clean mismatch is not queued
     assert listed[0]["reviewed"] is False
 
     assert client.get("/cases", params={"outcome": "verified"}).json() == []
@@ -106,27 +107,6 @@ def test_submission_entry_matches_the_evaluation_shape(client: TestClient) -> No
         "has_defect": True,
         "defect_fields": ["consignee", "notify_party"],
     }
-
-
-def test_review_decision_is_recorded_against_the_case(client: TestClient) -> None:
-    client.post("/cases/email_004/run")
-    response = client.post(
-        "/cases/email_004/review",
-        json={
-            "reviewer": "ops@averis.example",
-            "action": "corrected",
-            "note": "Consignee amended by the customer; BL to be reissued.",
-            "corrected_fields": ["consignee"],
-        },
-    )
-    assert response.status_code == 200
-    case = response.json()
-    assert case["review"]["reviewer"] == "ops@averis.example"
-    assert case["review"]["corrected_fields"] == ["consignee"]
-    # The automated outcome is kept; the decision is added beside it.
-    assert case["outcome"] == CaseOutcome.MISMATCH.value
-    assert case["attempts"][-1]["stage"] == "human_review"
-    assert client.get("/cases").json()[0]["reviewed"] is True
 
 
 def test_unknown_email_is_a_404(client: TestClient) -> None:

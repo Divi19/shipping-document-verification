@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
 type AvailableCase = {
@@ -194,6 +195,21 @@ export function CaseWorkbench({ apiConnected }: { apiConnected: boolean }) {
                   {report.match_status.replaceAll("_", " ")}
                 </span>
               </div>
+
+              {report.review_status !== "not_required" && (
+                <div className="review-callout">
+                  <span>
+                    This case is in the human review queue (
+                    {report.review_status.replaceAll("_", " ")}).
+                  </span>
+                  <Link
+                    className="text-link"
+                    href={`/review?case=${encodeURIComponent(report.email_id)}`}
+                  >
+                    Open in review queue →
+                  </Link>
+                </div>
+              )}
 
               <div className="metric-grid report-metrics">
                 <div>

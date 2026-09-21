@@ -49,13 +49,14 @@ class SubmissionEntry(TypedDict):
 
 
 def submission_entry(case: CaseRecord) -> SubmissionEntry:
-    """Render one case."""
-    submission_status = OUTCOME_TO_STATUS[case.outcome]
-    defects = [field.value for field in case.defect_fields]
+    """Render one case, using the reviewer's resolution when there is one."""
+    submission_status = OUTCOME_TO_STATUS[case.final_outcome]
+    defects = [field.value for field in case.final_defect_fields]
+    reason = case.final_review_reason
     return {
         "category": case.category.value,
         "status": submission_status.value,
-        "review_reason": case.review_reason.value if case.review_reason else None,
+        "review_reason": reason.value if reason else None,
         "has_defect": submission_status is SubmissionStatus.MISMATCH,
         "defect_fields": defects,
     }

@@ -1,13 +1,14 @@
-"""Case endpoints: run the pipeline, read a case, record a review decision.
+"""Case endpoints: run the pipeline over one email or the whole inbox, read a case.
 
-This is the seam the review interface talks to. Responses are the pipeline's
-own Pydantic models, so the generated TypeScript contracts stay in step with
-the backend automatically.
+Responses are the pipeline's own Pydantic models, so the generated TypeScript
+contracts stay in step with the backend automatically. Review decisions live in
+``app.api.review``.
 
 The router deliberately avoids importing the document ingestion package at
 module level, so the API surface is testable without the extraction extras.
 """
 
+import collections
 import json
 import re
 from functools import lru_cache
@@ -24,13 +25,14 @@ from app.pipeline import (
     CaseRecord,
     FinalReport,
     Pipeline,
-    ReviewAction,
+    ReviewStatus,
     build_report,
+    reprocess,
     submission_entry,
 )
-from app.pipeline.inbox import parse_email
-from app.pipeline.models import FieldName, ReviewDecision
-from app.pipeline.store import CaseStore, InMemoryCaseStore, apply_review
+from app.pipeline.inbox import iter_emails, parse_email
+from app.pipeline.models import FieldName
+from app.pipeline.store import CaseStore, InMemoryCaseStore
 from app.pipeline.submission import SubmissionEntry
 
 router = APIRouter(prefix="/cases", tags=["cases"])
@@ -50,15 +52,6 @@ def get_pipeline() -> Pipeline:
     return build_pipeline()
 
 
-class ReviewRequest(BaseModel):
-    """A reviewer's decision on an escalated case."""
-
-    reviewer: str
-    action: ReviewAction
-    note: str | None = None
-    corrected_fields: list[FieldName] = Field(default_factory=list)
-
-
 class CaseSummary(BaseModel):
     """List-view row: enough to triage without loading every document."""
 
@@ -67,7 +60,17 @@ class CaseSummary(BaseModel):
     outcome: CaseOutcome
     review_reason: str | None
     defect_fields: list[FieldName]
-    reviewed: bool
+    review_status: ReviewStatus
+    reviewed: bool  # at least one human decision is on record
+
+
+class InboxRun(BaseModel):
+    """What one pass over the inbox did."""
+
+    processed: int
+    skipped: int
+    outcomes: dict[str, int] = Field(default_factory=dict)
+    queued_for_review: int
 
 
 class AvailableCase(BaseModel):
@@ -86,7 +89,8 @@ def _summary(case: CaseRecord) -> CaseSummary:
         outcome=case.outcome,
         review_reason=case.review_reason.value if case.review_reason else None,
         defect_fields=case.defect_fields,
-        reviewed=case.review is not None,
+        review_status=case.review_status,
+        reviewed=bool(case.review and case.review.decisions),
     )
 
 
@@ -99,9 +103,15 @@ def _email_path(email_id: str) -> Path:
     return path
 
 
-def _load_email(email_id: str) -> ParsedEmail:
+def load_email(email_id: str) -> ParsedEmail:
+    """Load one inbox record, or raise 404/422 for an unknown or malformed id."""
     record = json.loads(_email_path(email_id).read_text(encoding="utf-8"))
     return parse_email(record)
+
+
+def _process(email: ParsedEmail, pipeline: Pipeline, store: CaseStore) -> CaseRecord:
+    """Run one email and store it, keeping history from any earlier run."""
+    return store.save(reprocess(store.get(email.email_id), pipeline.run(email)))
 
 
 @router.get("/available", response_model=list[AvailableCase])
@@ -131,8 +141,43 @@ def run_case(
 
     A case that needs review is saved here too, with its reason and evidence,
     so it appears in the queue immediately rather than after a human replies.
+    Running a case again is the controlled retry: earlier attempts and any
+    human decision stay on the record.
     """
-    return store.save(pipeline.run(_load_email(email_id)))
+    return _process(load_email(email_id), pipeline, store)
+
+
+@router.post("/run-inbox", response_model=InboxRun)
+def run_inbox(
+    pipeline: Pipeline = Depends(get_pipeline),
+    store: CaseStore = Depends(get_store),
+) -> InboxRun:
+    """Process every inbox email not processed yet, and fill the review queue.
+
+    Cases already in the store are skipped, so a second pass duplicates no work
+    and does not call a configured model again. Use ``/cases/{id}/run`` to
+    retry one case.
+    """
+    outcomes: collections.Counter[str] = collections.Counter()
+    processed = skipped = 0
+    for email in iter_emails(data_dir()):
+        if store.get(email.email_id) is not None:
+            skipped += 1
+            continue
+        case = _process(email, pipeline, store)
+        outcomes[case.outcome.value] += 1
+        processed += 1
+    queued = sum(
+        1
+        for case in store.list()
+        if case.review_status in {ReviewStatus.PENDING, ReviewStatus.AWAITING_INFORMATION}
+    )
+    return InboxRun(
+        processed=processed,
+        skipped=skipped,
+        outcomes=dict(outcomes),
+        queued_for_review=queued,
+    )
 
 
 @router.post("/{email_id}/run-report", response_model=FinalReport)
@@ -142,8 +187,7 @@ def run_case_report(
     store: CaseStore = Depends(get_store),
 ) -> FinalReport:
     """Run classification through reporting and return the complete final result."""
-    case = store.save(pipeline.run(_load_email(email_id)))
-    return build_report(case)
+    return build_report(_process(load_email(email_id), pipeline, store))
 
 
 @router.get("/{email_id}/report", response_model=FinalReport)
@@ -180,23 +224,3 @@ def case_submission_entry(email_id: str, store: CaseStore = Depends(get_store)) 
     if case is None:
         raise HTTPException(status_code=404, detail=f"Case not processed: {email_id}")
     return submission_entry(case)
-
-
-@router.post("/{email_id}/review", response_model=CaseRecord)
-def review_case(
-    email_id: str,
-    request: ReviewRequest,
-    store: CaseStore = Depends(get_store),
-) -> CaseRecord:
-    """Record a reviewer's decision and update the stored case."""
-    case = store.get(email_id)
-    if case is None:
-        raise HTTPException(status_code=404, detail=f"Case not processed: {email_id}")
-
-    decision = ReviewDecision(
-        reviewer=request.reviewer,
-        action=request.action,
-        note=request.note,
-        corrected_fields=request.corrected_fields,
-    )
-    return store.save(apply_review(case, decision))

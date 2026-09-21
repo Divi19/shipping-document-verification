@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
 import { CaseWorkbench } from "@/app/case-workbench";
@@ -181,11 +182,16 @@ export function PipelineWorkbench({ apiConnected }: { apiConnected: boolean }) {
             normalization, then run full SI-to-BL comparison and reporting.
           </p>
         </div>
-        <span
-          className={`status-pill ${apiConnected ? "connected" : "offline"}`}
-        >
-          <span /> FastAPI {apiConnected ? "connected" : "unavailable"}
-        </span>
+        <div className="hero-actions">
+          <span
+            className={`status-pill ${apiConnected ? "connected" : "offline"}`}
+          >
+            <span /> FastAPI {apiConnected ? "connected" : "unavailable"}
+          </span>
+          <Link className="nav-link" href="/review">
+            Human review queue →
+          </Link>
+        </div>
       </header>
 
       {!apiConnected && (
