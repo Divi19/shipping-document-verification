@@ -32,7 +32,8 @@ htmlcov/
 
 apps/api/openapi.json
 apps/web/next-env.d.ts
-packages/contracts/src/generated/
+# The generated TypeScript API contract is committed because the Vercel web
+# build does not run the Python OpenAPI exporter.
 
 supabase/.branches/
 supabase/.temp/

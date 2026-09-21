@@ -73,17 +73,17 @@ fields `consignee` and `notify_party`.
 ## 3. Deploy Next.js to Vercel
 
 1. In Vercel, choose **Add New → Project** and import the same repository.
-2. Set **Root Directory** to `apps/web`.
-3. Keep the detected **Next.js** framework and pnpm build settings.
+2. Set **Root Directory** to exactly `apps/web`. Do not use the repository root.
+3. Keep the detected **Next.js** framework. The build command should remain
+   `pnpm run build`; no custom install or build command is required.
 4. Under **Environment Variables**, add this for Production and Preview:
 
    ```text
    API_BASE_URL=https://YOUR-RENDER-URL
    ```
 
-5. Deploy. If Vercel asks about workspace files outside `apps/web`, enable
-   **Include source files outside of the Root Directory** so it can access
-   `packages/contracts` and the repository pnpm lockfile.
+5. Deploy. The generated contract required by the workspace is committed to
+   the repository, so no additional "outside Root Directory" setting is needed.
 6. After changing `API_BASE_URL`, redeploy; existing deployments do not receive
    environment-variable changes retroactively.
 
