@@ -3,6 +3,7 @@ FROM python:3.12-slim
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     SDOC_DATA_DIR=/app/data \
+    SDOC_CASE_STORE_PATH=/tmp/sdoc-cases.json \
     PATH=/app/apps/api/.venv/bin:$PATH
 
 WORKDIR /app

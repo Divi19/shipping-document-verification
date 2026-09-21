@@ -8,6 +8,7 @@ REPO_ROOT = REPOSITORY_ROOT
 LOCAL_DATA = REPOSITORY_ROOT / "local-data"
 DEFAULT_DATA_DIR = REPOSITORY_ROOT / "local-data" / "sdoc-hackathon-bundle"
 DATA_DIR_ENV = "SDOC_DATA_DIR"
+CASE_STORE_PATH_ENV = "SDOC_CASE_STORE_PATH"
 
 
 def resolve_data_dir(override: str | Path | None = None) -> Path:
@@ -19,6 +20,12 @@ def resolve_data_dir(override: str | Path | None = None) -> Path:
 def data_dir() -> Path:
     """Return the configured dataset root as an absolute path."""
     return resolve_data_dir()
+
+
+def case_store_path() -> Path | None:
+    """Return the optional file used to persist review state between restarts."""
+    configured = os.getenv(CASE_STORE_PATH_ENV)
+    return Path(configured).expanduser().resolve() if configured else None
 
 
 def inbox_dir() -> Path:

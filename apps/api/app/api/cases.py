@@ -18,7 +18,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from app.composition import build_pipeline
-from app.config import data_dir
+from app.config import case_store_path, data_dir
 from app.models.email.schemas import ParsedEmail
 from app.pipeline import (
     CaseOutcome,
@@ -32,7 +32,7 @@ from app.pipeline import (
 )
 from app.pipeline.inbox import iter_emails, parse_email
 from app.pipeline.models import FieldName
-from app.pipeline.store import CaseStore, InMemoryCaseStore
+from app.pipeline.store import CaseStore, InMemoryCaseStore, JsonCaseStore
 from app.pipeline.submission import SubmissionEntry
 
 router = APIRouter(prefix="/cases", tags=["cases"])
@@ -42,8 +42,9 @@ EMAIL_ID_PATTERN = re.compile(r"^email_\d{1,6}$")
 
 @lru_cache(maxsize=1)
 def get_store() -> CaseStore:
-    """The process-wide case store (swap for Supabase without touching routes)."""
-    return InMemoryCaseStore()
+    """The process-wide case store, persistent when a path is configured."""
+    path = case_store_path()
+    return JsonCaseStore(path) if path is not None else InMemoryCaseStore()
 
 
 @lru_cache(maxsize=1)
@@ -58,6 +59,7 @@ class CaseSummary(BaseModel):
     email_id: str
     category: str
     outcome: CaseOutcome
+    automated_outcome: CaseOutcome
     review_reason: str | None
     defect_fields: list[FieldName]
     review_status: ReviewStatus
@@ -86,9 +88,10 @@ def _summary(case: CaseRecord) -> CaseSummary:
     return CaseSummary(
         email_id=case.email_id,
         category=case.category.value,
-        outcome=case.outcome,
+        outcome=case.final_outcome,
+        automated_outcome=case.outcome,
         review_reason=case.review_reason.value if case.review_reason else None,
-        defect_fields=case.defect_fields,
+        defect_fields=case.final_defect_fields,
         review_status=case.review_status,
         reviewed=bool(case.review and case.review.decisions),
     )

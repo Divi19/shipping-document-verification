@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from app.config import DEFAULT_DATA_DIR, resolve_data_dir
+from app.config import DEFAULT_DATA_DIR, case_store_path, resolve_data_dir
 
 
 def test_default_data_dir_uses_ignored_participant_bundle(
@@ -33,3 +33,16 @@ def test_explicit_data_dir_takes_precedence(
     monkeypatch.setenv("SDOC_DATA_DIR", str(environment_path))
 
     assert resolve_data_dir(explicit_path) == explicit_path
+
+
+def test_case_store_path_is_optional(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("SDOC_CASE_STORE_PATH", raising=False)
+
+    assert case_store_path() is None
+
+
+def test_case_store_path_can_be_configured(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    configured = tmp_path / "cases.json"
+    monkeypatch.setenv("SDOC_CASE_STORE_PATH", str(configured))
+
+    assert case_store_path() == configured

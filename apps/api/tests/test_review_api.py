@@ -166,6 +166,8 @@ def test_a_correction_updates_the_report_and_the_queue(client: TestClient) -> No
     summary = next(row for row in client.get("/cases").json() if row["email_id"] == "email_516")
     assert summary["reviewed"] is True
     assert summary["review_status"] == "resolved"
+    assert summary["automated_outcome"] == "needs_review"
+    assert summary["outcome"] == "verified"
 
 
 def test_a_request_for_information_moves_the_case_to_waiting(client: TestClient) -> None:

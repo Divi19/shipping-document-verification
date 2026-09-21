@@ -89,6 +89,7 @@ def test_case_is_stored_and_listed(client: TestClient) -> None:
 
     listed = client.get("/cases").json()
     assert [row["email_id"] for row in listed] == ["email_004"]
+    assert listed[0]["automated_outcome"] == "mismatch"
     assert listed[0]["defect_fields"] == ["consignee", "notify_party"]
     assert listed[0]["review_status"] == "not_required"  # a clean mismatch is not queued
     assert listed[0]["reviewed"] is False
