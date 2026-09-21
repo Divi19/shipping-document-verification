@@ -29,12 +29,16 @@ try:
     from docling.datamodel.pipeline_options import (  # type: ignore[import-not-found]
         PdfPipelineOptions,
     )
-    from docling.document_converter import DocumentConverter  # type: ignore[import-not-found]
+    from docling.document_converter import (  # type: ignore[import-not-found]
+        DocumentConverter,
+        PdfFormatOption,
+    )
 
     DOCLING_AVAILABLE = True
 except ImportError:
     DOCLING_AVAILABLE = False
     DocumentConverter = None
+    PdfFormatOption = None
     InputFormat = None
     PdfPipelineOptions = None
 
@@ -93,9 +97,15 @@ class OcrEngine(Protocol):
 class TesseractOcrEngine:
     """Local Tesseract adapter retaining confidence and bounding boxes."""
 
-    def __init__(self, minimum_confidence: float = 40.0, timeout_seconds: int = 30) -> None:
+    def __init__(
+        self,
+        minimum_confidence: float = 40.0,
+        timeout_seconds: int = 30,
+        config: str = "--oem 3 --psm 6 -c preserve_interword_spaces=1",
+    ) -> None:
         self.minimum_confidence = minimum_confidence
         self.timeout_seconds = timeout_seconds
+        self.config = config
 
     def is_available(self) -> bool:
         """Check for the external Tesseract executable without invoking it."""
@@ -105,6 +115,7 @@ class TesseractOcrEngine:
         """OCR a page and rebuild lines from Tesseract's structural identifiers."""
         data = pytesseract.image_to_data(
             image,
+            config=self.config,
             output_type=pytesseract.Output.DICT,
             timeout=self.timeout_seconds,
         )
@@ -154,8 +165,9 @@ class PDFExtractor(DocumentExtractor):
         enable_vision_fallback: bool = True,
         gemini_client: genai.Client | None = None,
         enable_local_ocr: bool = True,
+        enable_docling: bool = False,
         ocr_engine: OcrEngine | None = None,
-        ocr_render_scale: float = 2.0,
+        ocr_render_scale: float = 3.0,
         max_pdf_pages: int = 20,
         max_pdf_bytes: int = 25 * 1024 * 1024,
     ) -> None:
@@ -166,6 +178,7 @@ class PDFExtractor(DocumentExtractor):
             gemini_api_key is not None or gemini_client is not None
         )
         self.enable_local_ocr = enable_local_ocr
+        self.enable_docling = enable_docling
         self.ocr_engine = ocr_engine or TesseractOcrEngine()
         self.ocr_render_scale = ocr_render_scale
         self.max_pdf_pages = max_pdf_pages
@@ -193,7 +206,7 @@ class PDFExtractor(DocumentExtractor):
             pipeline_options.do_table_structure = True
             pipeline_options.table_structure_options.do_cell_matching = True
             self._docling_converter = DocumentConverter(
-                format_options={InputFormat.PDF: pipeline_options}
+                format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)}
             )
         return self._docling_converter
 
@@ -218,16 +231,6 @@ class PDFExtractor(DocumentExtractor):
         except Exception as exc:
             diagnostics.append(f"Native PDF extraction failed: {type(exc).__name__}: {exc}")
 
-        if DOCLING_AVAILABLE:
-            try:
-                structured = self._extract_with_docling(content, filename)
-                if self._is_extraction_sufficient(structured):
-                    structured.diagnostics = diagnostics
-                    return structured
-                diagnostics.append("Docling extraction was insufficient.")
-            except Exception as exc:
-                diagnostics.append(f"Docling extraction failed: {type(exc).__name__}: {exc}")
-
         if self.enable_local_ocr:
             if self.ocr_engine.is_available():
                 try:
@@ -240,6 +243,16 @@ class PDFExtractor(DocumentExtractor):
                     diagnostics.append(f"Local OCR failed: {type(exc).__name__}: {exc}")
             else:
                 diagnostics.append("Local OCR is unavailable because Tesseract was not found.")
+
+        if self.enable_docling and DOCLING_AVAILABLE:
+            try:
+                structured = self._extract_with_docling(content, filename)
+                if self._is_extraction_sufficient(structured):
+                    structured.diagnostics = diagnostics
+                    return structured
+                diagnostics.append("Docling extraction was insufficient.")
+            except Exception as exc:
+                diagnostics.append(f"Docling extraction failed: {type(exc).__name__}: {exc}")
 
         if self.enable_vision_fallback:
             try:

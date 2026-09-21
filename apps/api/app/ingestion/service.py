@@ -31,7 +31,8 @@ class DocumentIngestionConfig:
         vision_fallback_threshold: float = 0.3,
         enable_vision_fallback: bool = True,
         enable_local_ocr: bool = True,
-        ocr_render_scale: float = 2.0,
+        enable_docling: bool = False,
+        ocr_render_scale: float = 3.0,
         max_pdf_pages: int = 20,
         max_pdf_bytes: int = 25 * 1024 * 1024,
         max_concurrent: int = 4,
@@ -53,6 +54,7 @@ class DocumentIngestionConfig:
         self.vision_fallback_threshold = vision_fallback_threshold
         self.enable_vision_fallback = enable_vision_fallback
         self.enable_local_ocr = enable_local_ocr
+        self.enable_docling = enable_docling
         self.ocr_render_scale = ocr_render_scale
         self.max_pdf_pages = max_pdf_pages
         self.max_pdf_bytes = max_pdf_bytes
@@ -122,6 +124,7 @@ class DocumentIngestionService:
                     vision_fallback_threshold=self.config.vision_fallback_threshold,
                     enable_vision_fallback=self.config.enable_vision_fallback,
                     enable_local_ocr=self.config.enable_local_ocr,
+                    enable_docling=self.config.enable_docling,
                     ocr_render_scale=self.config.ocr_render_scale,
                     max_pdf_pages=self.config.max_pdf_pages,
                     max_pdf_bytes=self.config.max_pdf_bytes,
@@ -179,6 +182,7 @@ class DocumentIngestionService:
             vision_fallback_threshold=self.config.vision_fallback_threshold,
             enable_vision_fallback=self.config.enable_vision_fallback,
             enable_local_ocr=self.config.enable_local_ocr,
+            enable_docling=self.config.enable_docling,
             ocr_render_scale=self.config.ocr_render_scale,
             max_pdf_pages=self.config.max_pdf_pages,
             max_pdf_bytes=self.config.max_pdf_bytes,
@@ -214,6 +218,7 @@ class DocumentIngestionService:
             vision_fallback_threshold=self.config.vision_fallback_threshold,
             enable_vision_fallback=self.config.enable_vision_fallback,
             enable_local_ocr=self.config.enable_local_ocr,
+            enable_docling=self.config.enable_docling,
             ocr_render_scale=self.config.ocr_render_scale,
             max_pdf_pages=self.config.max_pdf_pages,
             max_pdf_bytes=self.config.max_pdf_bytes,

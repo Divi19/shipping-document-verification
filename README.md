@@ -52,8 +52,9 @@ Do not commit `.env`, local credentials, service-role keys, or other secrets.
 `SDOC_DATA_DIR` may point to an alternate participant-bundle directory. When it is unset,
 the API uses `local-data/sdoc-hackathon-bundle`.
 
-PDF ingestion first reads native text, then tries optional Docling and local Tesseract OCR.
+PDF ingestion first reads native text, then uses local Tesseract OCR for image-only pages.
 Install Tesseract with `brew install tesseract` on macOS or your platform's package manager.
+Docling remains available as an explicitly enabled heavier fallback but is disabled by default.
 
 Gemini fallbacks are optional and disabled by default. Deterministic extraction remains the
 primary path. To opt in, set `GEMINI_ENABLE_FALLBACK=true`, provide `GEMINI_API_KEY`, and
