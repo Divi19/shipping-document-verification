@@ -24,6 +24,7 @@ class DocumentIngestionConfig:
     def __init__(
         self,
         gemini_api_key: str | None = None,
+        gemini_model: str = "gemini-2.5-flash-lite",
         cache_dir: Path | None = None,
         cache_size_gb: float = 1.0,
         vision_fallback_threshold: float = 0.3,
@@ -32,6 +33,7 @@ class DocumentIngestionConfig:
         request_timeout: int = 30,
     ):
         self.gemini_api_key = gemini_api_key
+        self.gemini_model = gemini_model
         self.cache_dir = cache_dir or Path(".cache/document_ingestion")
         self.cache_size_gb = cache_size_gb
         self.vision_fallback_threshold = vision_fallback_threshold
@@ -98,6 +100,7 @@ class DocumentIngestionService:
                 self._extractors[content_type] = get_extractor(
                     content_type,
                     gemini_api_key=self.config.gemini_api_key,
+                    gemini_model=self.config.gemini_model,
                     vision_fallback_threshold=self.config.vision_fallback_threshold,
                     enable_vision_fallback=self.config.enable_vision_fallback,
                 )
@@ -228,6 +231,10 @@ class DocumentIngestionService:
     def shutdown(self) -> None:
         """Shutdown the service."""
         self._executor.shutdown(wait=True)
+        for extractor in self._extractors.values():
+            close = getattr(extractor, "close", None)
+            if callable(close):
+                close()
         if self._cache:
             self._cache.close()
 
