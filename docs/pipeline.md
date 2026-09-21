@@ -97,8 +97,12 @@ Rules that keep it auditable:
   retry: earlier attempts stay in the trail, and a ticket that holds a human
   decision moves to the new record unchanged.
 
-The queue lives in the same `CaseStore` as the cases. The in-memory store loses
-it on restart; a persistent store implements the same protocol.
+The queue lives in the same `CaseStore` as the cases. Tests use the in-memory
+store. Setting `SDOC_CASE_STORE_PATH` enables the atomic JSON store used by the
+demo deployment, so tickets, decisions and final reports survive an API process
+restart. Render's filesystem remains ephemeral across service replacement or a
+new deployment; a production system should implement the same store protocol
+with Supabase or another durable database.
 
 | Endpoint | Purpose |
 |---|---|

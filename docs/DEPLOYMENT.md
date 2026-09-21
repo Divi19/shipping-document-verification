@@ -49,6 +49,7 @@ The Blueprint already supplies:
 
 ```text
 SDOC_DATA_DIR=/app/data
+SDOC_CASE_STORE_PATH=/tmp/sdoc-cases.json
 GEMINI_ENABLE_FALLBACK=true
 GEMINI_MODEL=gemini-2.5-flash-lite
 ```
@@ -69,6 +70,11 @@ https://YOUR-RENDER-URL/cases/email_004/run-report
 
 The expected result has seven comparisons, QA status `pass`, and mismatch
 fields `consignee` and `notify_party`.
+
+`SDOC_CASE_STORE_PATH` keeps review decisions through an API process restart in
+the same container. The free Render filesystem is not durable across a service
+replacement or redeployment, so this is appropriate for the live prototype,
+not long-term production records.
 
 ## 3. Deploy Next.js to Vercel
 
@@ -95,7 +101,14 @@ fields `consignee` and `notify_party`.
 4. Click **Run comparison and report**.
 5. Confirm seven field rows, two mismatches, a passing QA gate, evidence
    locations, the human-readable report, and structured JSON.
-6. Use **Technical diagnostics** only when demonstrating OCR, extraction,
+6. Select `email_059`, run it, and confirm the result says **Uncertain** with an
+   **Open in review queue** link.
+7. Open the review package, enter a reviewer name, correct **Gross weight
+   (BL)** to `131,322 KG`, and record the correction.
+8. Confirm the queue moves the case to **Resolved**, the final outcome becomes
+   **Verified**, and the report still shows the automated outcome as
+   `needs_review`.
+9. Use **Technical diagnostics** only when demonstrating OCR, extraction,
    evidence verification, or normalization for one document.
 
 ## Organizer Docker package

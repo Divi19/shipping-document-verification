@@ -99,12 +99,13 @@ For a quick validation, open <http://localhost:3000> and run these included samp
 4. `email_511_BL.pdf` — deliberately corrupt edge case; expected to report `unreadable`.
 
 The **Human review queue** at <http://localhost:3000/review> handles the cases
-the pipeline cannot decide. Click **Process inbox** to run every email, then open
-a case to see the original email, both documents, the fields in question with
-their evidence, and the escalation reason. Confirm, correct values, request
-information, or mark the case unable to verify; the final report updates at
-once. `email_059` is a good first case: the BL gross weight was not read, and
-correcting it to `131,322 KG` resolves the case as verified. See
+the pipeline cannot decide. For a quick end-to-end demonstration, run
+`email_059` in **Complete workflow**, follow **Open in review queue**, and
+correct the BL gross weight to `131,322 KG`. The seven comparisons and final
+report update to `verified` while retaining the automated `needs_review`
+outcome in the audit history. Reviewers can also request information or close a
+case as unable to verify. **Process full inbox** is available for batch testing,
+but may take several minutes and invoke configured Gemini fallbacks. See
 [docs/pipeline.md](docs/pipeline.md#human-review) for the rules.
 
 If the page reports `FastAPI unavailable`, ensure `pnpm dev:api` is running in a separate
@@ -148,11 +149,10 @@ per email id) and prints a summary of outcomes and escalation reasons.
 The dataset root defaults to `local-data/sdoc-hackathon-bundle`; override it
 with `SDOC_DATA_DIR`.
 
-Scoring reads `ground_truth.json` and the organisers' `scoring.py` from
-`local-data/sdoc-hackathon-docker`. The organisers confirmed on 19 September
-2026 that this archive is intended for teams to evaluate their own work. It
-stays a development tool: nothing under `app/` imports it, and `local-data/`
-is never committed.
+Scoring reads `ground_truth.json` and the organisers' `scoring.py` from the
+separate organizer package. That answer-key package stays outside Git and is
+never read by the application. Only the participant-safe inbox and attachments
+under `local-data/sdoc-hackathon-bundle` are committed for the live demo.
 
 ## Quality commands
 
