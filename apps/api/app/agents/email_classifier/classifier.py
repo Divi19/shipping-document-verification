@@ -1,11 +1,19 @@
 """Rule-based email classifier."""
 
 import re
-from app.models.email.schemas import ParsedEmail, EmailCategory, ClassifiedEmail
+
+from app.models.email.schemas import ClassifiedEmail, EmailCategory, ParsedEmail
 
 
 class EmailClassifier:
     """Classify emails using rule-based logic."""
+
+    COMPARISON_INTENT_PATTERNS = [
+        r"\bcompare\b",
+        r"\b(?:check|verify)\b.*\b(?:against|match(?:es|ed|ing)?)\b",
+        r"\b(?:against|match(?:es|ed|ing)?)\b.*\b(?:check|verify)\b",
+        r"\b(?:discrepanc(?:y|ies)|mismatch(?:es)?)\b",
+    ]
 
     SPAM_PATTERNS = [
         r"increase your shipping revenue",
@@ -53,8 +61,8 @@ class EmailClassifier:
         subject = email.subject.lower()
         body = email.body.lower()
         text = f"{subject} {body}"
-        has_si_att = any("SI" in a.filename for a in email.attachments)
-        has_bl_att = any("BL" in a.filename for a in email.attachments)
+        has_si_att = any("SI" in attachment.filename.upper() for attachment in email.attachments)
+        has_bl_att = any("BL" in attachment.filename.upper() for attachment in email.attachments)
 
         # Rule 1: Both SI and BL attachments -> BL_COMPARISON
         if has_si_att and has_bl_att:
@@ -65,7 +73,17 @@ class EmailClassifier:
                 reasoning="Has both SI and BL attachments",
             )
 
-        # Rule 2: Only SI attachment -> SI_REQUEST
+        # Rule 2: Explicit SI-to-BL comparison intent remains actionable even
+        # when an expected attachment is missing.
+        if self._has_comparison_intent(text):
+            return ClassifiedEmail(
+                email_id=email.email_id,
+                category=EmailCategory.BL_COMPARISON,
+                confidence=0.95,
+                reasoning="Explicit SI-to-BL comparison request",
+            )
+
+        # Rule 3: Only SI attachment -> SI_REQUEST
         if has_si_att and not has_bl_att:
             return ClassifiedEmail(
                 email_id=email.email_id,
@@ -74,7 +92,7 @@ class EmailClassifier:
                 reasoning="Has SI attachment only",
             )
 
-        # Rule 3: Spam patterns
+        # Rule 4: Spam patterns
         for pattern in self.SPAM_PATTERNS:
             if re.search(pattern, text, re.IGNORECASE):
                 return ClassifiedEmail(
@@ -84,7 +102,7 @@ class EmailClassifier:
                     reasoning=f"Matches spam pattern: {pattern}",
                 )
 
-        # Rule 4: SI request patterns (no attachment) - check BEFORE invoice
+        # Rule 5: SI request patterns (no attachment) - check BEFORE invoice
         for pattern in self.SI_REQUEST_PATTERNS:
             if re.search(pattern, text, re.IGNORECASE):
                 return ClassifiedEmail(
@@ -94,7 +112,7 @@ class EmailClassifier:
                     reasoning=f"Matches SI request pattern: {pattern}",
                 )
 
-        # Rule 5: BL patterns (no attachment) - check BEFORE invoice
+        # Rule 6: BL patterns (no attachment) - check BEFORE invoice
         for pattern in self.BL_PATTERNS:
             if re.search(pattern, text, re.IGNORECASE):
                 return ClassifiedEmail(
@@ -104,7 +122,7 @@ class EmailClassifier:
                     reasoning=f"Matches BL pattern: {pattern}",
                 )
 
-        # Rule 6: Specific invoice patterns
+        # Rule 7: Specific invoice patterns
         for pattern in self.INVOICE_PATTERNS:
             if re.search(pattern, text, re.IGNORECASE):
                 return ClassifiedEmail(
@@ -114,7 +132,7 @@ class EmailClassifier:
                     reasoning=f"Matches invoice pattern: {pattern}",
                 )
 
-        # Rule 7: Broad invoice patterns (lower confidence)
+        # Rule 8: Broad invoice patterns (lower confidence)
         for pattern in self.BROAD_INVOICE_PATTERNS:
             if re.search(pattern, text, re.IGNORECASE):
                 return ClassifiedEmail(
@@ -135,3 +153,15 @@ class EmailClassifier:
     def classify_batch(self, emails: list[ParsedEmail]) -> list[ClassifiedEmail]:
         """Classify multiple emails."""
         return [self.classify(email) for email in emails]
+
+    def _has_comparison_intent(self, text: str) -> bool:
+        """Return whether text explicitly requests an SI-to-BL comparison."""
+        mentions_si = re.search(r"\b(?:si|shipping instructions?)\b", text, re.IGNORECASE)
+        mentions_bl = re.search(r"\b(?:draft\s+)?(?:bl|bill of lading)\b", text, re.IGNORECASE)
+        if not mentions_si or not mentions_bl:
+            return False
+
+        return any(
+            re.search(pattern, text, re.IGNORECASE | re.DOTALL)
+            for pattern in self.COMPARISON_INTENT_PATTERNS
+        )
