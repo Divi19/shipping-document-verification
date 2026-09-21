@@ -1,14 +1,19 @@
 # Shipping Document Verification
 
-Barebones monorepo for the shipping document verification project. The repository currently contains framework setup, shared health contracts, optional local infrastructure, and verification tooling only. Shipping-document business logic and product features are intentionally out of scope.
+Monorepo for an evidence-backed shipping-document verification prototype. It
+classifies email cases, reads SI/BL attachments, extracts and normalizes seven
+fields, compares the documents, applies a deterministic QA gate, and produces
+structured and human-readable reports.
+
+For the production hosting sequence, see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 ## Repository boundaries
 
-- `apps/web`: Next.js presentation layer and minimal FastAPI connectivity check.
-- `apps/api`: FastAPI service, Pydantic API models, and OpenAPI export.
+- `apps/web`: Next.js verification and technical-diagnostics workbench.
+- `apps/api`: FastAPI ingestion, orchestration, comparison, QA, and reporting service.
 - `packages/contracts`: TypeScript contracts generated from FastAPI's Pydantic-backed OpenAPI schema.
 - `supabase`: Optional local Supabase configuration and future database migrations.
-- `local-data`: Local hackathon bundles only; the entire directory is Git-ignored.
+- `local-data`: Participant-safe demo inbox and attachments used locally and in the API image.
 
 The FastAPI application and its tests do not require Supabase.
 
@@ -82,9 +87,9 @@ The services are then available at:
 - FastAPI health: <http://localhost:8000/health>
 - FastAPI OpenAPI: <http://localhost:8000/openapi.json>
 
-The Next.js page provides a local document-pipeline workbench. It can run bundled samples or
-uploaded TXT/PDF files through ingestion, Box 5 extraction, Box 6 evidence verification, and
-Box 7 normalization.
+The Next.js page presents the complete SI-to-BL verification workflow first.
+The single-document workbench appears below it as **Technical diagnostics** for
+inspecting ingestion, extraction, evidence verification, and normalization.
 
 For a quick validation, open <http://localhost:3000> and run these included samples in order:
 
