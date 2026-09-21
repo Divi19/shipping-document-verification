@@ -1,17 +1,41 @@
 """Models package."""
 
-from app.models.health import HealthResponse
 from app.models.email.schemas import (
-    ParsedEmail,
+    ClassifiedEmail,
     EmailAttachment,
     EmailCategory,
-    ClassifiedEmail,
+    ParsedEmail,
 )
+from app.models.extraction import (
+    ALL_COMPARISON_FIELDS,
+    BoundingBox,
+    ComparisonField,
+    DocumentFieldCandidates,
+    DocumentRole,
+    EvidenceReference,
+    ExtractionMethod,
+    FieldCandidate,
+    PageRegionLocator,
+    TableCellLocator,
+    TextSpanLocator,
+)
+from app.models.health import HealthResponse
 
 __all__ = [
-    "HealthResponse",
-    "ParsedEmail",
+    "ALL_COMPARISON_FIELDS",
+    "BoundingBox",
+    "ClassifiedEmail",
+    "ComparisonField",
+    "DocumentFieldCandidates",
+    "DocumentRole",
     "EmailAttachment",
     "EmailCategory",
-    "ClassifiedEmail",
+    "EvidenceReference",
+    "ExtractionMethod",
+    "FieldCandidate",
+    "HealthResponse",
+    "PageRegionLocator",
+    "ParsedEmail",
+    "TableCellLocator",
+    "TextSpanLocator",
 ]
