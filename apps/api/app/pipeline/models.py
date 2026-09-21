@@ -81,6 +81,7 @@ class FieldValue(BaseModel):
     raw: str | None = None
     normalized: str | None = None
     evidence: Evidence | None = None
+    confidence: float | None = Field(default=None, ge=0, le=1)
     note: str | None = None
 
     @property

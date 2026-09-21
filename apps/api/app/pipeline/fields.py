@@ -220,6 +220,7 @@ def _choose(field: FieldName, candidates: list[Candidate]) -> FieldValue:
         field=field,
         raw=normalize_whitespace(chosen.value),
         normalized=normalized,
+        confidence=0.98,
         evidence=_evidence(chosen),
     )
 

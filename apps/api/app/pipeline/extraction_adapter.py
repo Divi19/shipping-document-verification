@@ -72,6 +72,7 @@ def extract_verified_fields(document: DocumentRead) -> dict[FieldName, FieldValu
             field=field,
             raw=raw,
             normalized=comparison_value,
+            confidence=candidate.confidence,
             evidence=Evidence(
                 source=evidence.source_filename,
                 locator=_format_locator(evidence.locator),

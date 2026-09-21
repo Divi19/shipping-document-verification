@@ -58,6 +58,32 @@ def test_running_a_case_returns_the_record_with_evidence(client: TestClient) -> 
     assert "EAST BRIGHT FZ-LLC" in consignee["si"]["evidence"]["snippet"]
 
 
+def test_available_cases_and_complete_report_are_exposed(client: TestClient) -> None:
+    available = client.get("/cases/available")
+    assert available.status_code == 200
+    assert available.json() == [
+        {
+            "email_id": "email_004",
+            "subject": COMPARISON_EMAIL["subject"],
+            "attachment_count": 2,
+            "attachment_names": ["email_004_SI.txt", "email_004_BL.txt"],
+        }
+    ]
+
+    response = client.post("/cases/email_004/run-report")
+    assert response.status_code == 200
+    report = response.json()
+    assert report["processing_status"] == "complete"
+    assert report["match_status"] == "mismatch"
+    assert report["quality_gate"]["status"] == "pass"
+    assert len(report["comparisons"]) == 7
+    assert len(report["evidence_summary"]) == 7
+
+    stored = client.get("/cases/email_004/report")
+    assert stored.status_code == 200
+    assert stored.json() == report
+
+
 def test_case_is_stored_and_listed(client: TestClient) -> None:
     client.post("/cases/email_004/run")
 

@@ -17,6 +17,16 @@ from .models import (
 )
 from .orchestrator import Pipeline
 from .readers import DocumentReader, ReaderError
+from .reporting import (
+    FinalReport,
+    MatchStatus,
+    QualityGate,
+    QualityGateStatus,
+    ReportStatus,
+    build_report,
+    evaluate_quality,
+    render_report,
+)
 from .submission import SubmissionStatus, build_submission, submission_entry, write_submission
 
 __all__ = [
@@ -30,14 +40,22 @@ __all__ = [
     "FieldComparison",
     "FieldName",
     "FieldValue",
+    "FinalReport",
+    "MatchStatus",
     "Pipeline",
+    "QualityGate",
+    "QualityGateStatus",
     "ReaderError",
     "ReviewAction",
     "ReviewDecision",
     "ReviewReason",
+    "ReportStatus",
     "StageAttempt",
     "SubmissionStatus",
     "build_submission",
+    "build_report",
+    "evaluate_quality",
+    "render_report",
     "submission_entry",
     "write_submission",
 ]

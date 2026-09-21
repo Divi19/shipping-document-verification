@@ -117,6 +117,7 @@ class LlmFieldResolver:
                 field=field,
                 raw=normalize_whitespace(value),
                 normalized=normalized,
+                confidence=0.8,
                 evidence=Evidence(
                     source=source,
                     locator=_locate(evidence, text),

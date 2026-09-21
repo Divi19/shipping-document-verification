@@ -18,7 +18,16 @@ from pydantic import BaseModel, Field
 
 from app.composition import build_pipeline
 from app.config import data_dir
-from app.pipeline import CaseOutcome, CaseRecord, Pipeline, ReviewAction, submission_entry
+from app.models.email.schemas import ParsedEmail
+from app.pipeline import (
+    CaseOutcome,
+    CaseRecord,
+    FinalReport,
+    Pipeline,
+    ReviewAction,
+    build_report,
+    submission_entry,
+)
 from app.pipeline.inbox import parse_email
 from app.pipeline.models import FieldName, ReviewDecision
 from app.pipeline.store import CaseStore, InMemoryCaseStore, apply_review
@@ -61,6 +70,15 @@ class CaseSummary(BaseModel):
     reviewed: bool
 
 
+class AvailableCase(BaseModel):
+    """An inbox item that can be run from the local demonstration UI."""
+
+    email_id: str
+    subject: str
+    attachment_count: int
+    attachment_names: list[str]
+
+
 def _summary(case: CaseRecord) -> CaseSummary:
     return CaseSummary(
         email_id=case.email_id,
@@ -81,6 +99,28 @@ def _email_path(email_id: str) -> Path:
     return path
 
 
+def _load_email(email_id: str) -> ParsedEmail:
+    record = json.loads(_email_path(email_id).read_text(encoding="utf-8"))
+    return parse_email(record)
+
+
+@router.get("/available", response_model=list[AvailableCase])
+def available_cases() -> list[AvailableCase]:
+    """List inbox records that can exercise the complete pipeline."""
+    available: list[AvailableCase] = []
+    for path in sorted((data_dir() / "inbox").glob("email_*.json")):
+        email = parse_email(json.loads(path.read_text(encoding="utf-8")))
+        available.append(
+            AvailableCase(
+                email_id=email.email_id,
+                subject=email.subject,
+                attachment_count=len(email.attachments),
+                attachment_names=[item.filename for item in email.attachments],
+            )
+        )
+    return available
+
+
 @router.post("/{email_id}/run", response_model=CaseRecord)
 def run_case(
     email_id: str,
@@ -92,8 +132,27 @@ def run_case(
     A case that needs review is saved here too, with its reason and evidence,
     so it appears in the queue immediately rather than after a human replies.
     """
-    record = json.loads(_email_path(email_id).read_text(encoding="utf-8"))
-    return store.save(pipeline.run(parse_email(record)))
+    return store.save(pipeline.run(_load_email(email_id)))
+
+
+@router.post("/{email_id}/run-report", response_model=FinalReport)
+def run_case_report(
+    email_id: str,
+    pipeline: Pipeline = Depends(get_pipeline),
+    store: CaseStore = Depends(get_store),
+) -> FinalReport:
+    """Run classification through reporting and return the complete final result."""
+    case = store.save(pipeline.run(_load_email(email_id)))
+    return build_report(case)
+
+
+@router.get("/{email_id}/report", response_model=FinalReport)
+def get_case_report(email_id: str, store: CaseStore = Depends(get_store)) -> FinalReport:
+    """Render a previously processed case without rerunning the pipeline."""
+    case = store.get(email_id)
+    if case is None:
+        raise HTTPException(status_code=404, detail=f"Case not processed: {email_id}")
+    return build_report(case)
 
 
 @router.get("/{email_id}", response_model=CaseRecord)
