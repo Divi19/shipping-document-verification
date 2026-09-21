@@ -151,6 +151,7 @@ class NormalizationRule(StrEnum):
     NORMALIZE_PUNCTUATION = "normalize_punctuation"
     NORMALIZE_LEGAL_SUFFIX = "normalize_legal_suffix"
     SELECT_PRIMARY_ENTITY = "select_primary_entity"
+    RESOLVE_PARTY_REFERENCE = "resolve_party_reference"
     PARSE_CONTAINER_COUNT = "parse_container_count"
     PARSE_WEIGHT = "parse_weight"
     CONVERT_WEIGHT_TO_KG = "convert_weight_to_kg"
@@ -272,6 +273,47 @@ class NormalizedDocument(ContractModel):
     def field_map(self) -> dict[ComparisonField, NormalizedField]:
         """Return normalized fields keyed by their comparison name."""
         return {item.field: item for item in self.fields}
+
+
+class NormalizationIssue(StrEnum):
+    """Reason a verified field could not produce a comparison value."""
+
+    MISSING_VERIFIED_FIELD = "missing_verified_field"
+    UNSUPPORTED_VALUE_FORMAT = "unsupported_value_format"
+    MISSING_REFERENCE_TARGET = "missing_reference_target"
+
+
+class NormalizationFailure(ContractModel):
+    """Explicit Box 7 failure for one required field."""
+
+    field: ComparisonField
+    issue: NormalizationIssue
+    message: str = Field(min_length=1)
+
+
+class DocumentNormalizationResult(ContractModel):
+    """Box 7 result containing normalized fields or explicit failures."""
+
+    document: NormalizedDocument
+    failures: list[NormalizationFailure] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def validate_coverage(self) -> Self:
+        """Require exactly one normalized or failed outcome for every field."""
+        normalized_fields = set(self.document.field_map())
+        failure_fields = [failure.field for failure in self.failures]
+        if len(failure_fields) != len(set(failure_fields)):
+            raise ValueError("normalization failures must be unique by field")
+        if normalized_fields.intersection(failure_fields):
+            raise ValueError("a field cannot be both normalized and failed")
+        if normalized_fields.union(failure_fields) != ALL_COMPARISON_FIELDS:
+            raise ValueError("normalization result must cover all required fields")
+        return self
+
+    @property
+    def is_complete(self) -> bool:
+        """Return whether all seven fields have normalized values."""
+        return not self.failures
 
 
 class VerifiedNormalizedPair(ContractModel):

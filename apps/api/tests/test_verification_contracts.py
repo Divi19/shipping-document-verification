@@ -15,8 +15,11 @@ from app.models.extraction import (
 )
 from app.models.verification import (
     CandidateAssessment,
+    DocumentNormalizationResult,
     DocumentVerificationResult,
     FieldVerificationResult,
+    NormalizationFailure,
+    NormalizationIssue,
     NormalizationRule,
     NormalizationStep,
     NormalizedDocument,
@@ -203,6 +206,26 @@ def test_normalized_document_rejects_duplicate_fields() -> None:
             document_role=DocumentRole.SHIPPING_INSTRUCTION,
             source_filename="sample_si.txt",
             fields=[field, field],
+        )
+
+
+def test_normalization_result_requires_all_fields_to_have_an_outcome() -> None:
+    document = NormalizedDocument(
+        document_role=DocumentRole.SHIPPING_INSTRUCTION,
+        source_filename="sample_si.txt",
+        fields=[],
+    )
+
+    with pytest.raises(ValidationError, match="all required fields"):
+        DocumentNormalizationResult(
+            document=document,
+            failures=[
+                NormalizationFailure(
+                    field=ComparisonField.SHIPPER,
+                    issue=NormalizationIssue.MISSING_VERIFIED_FIELD,
+                    message="Shipper was not verified.",
+                )
+            ],
         )
 
 
