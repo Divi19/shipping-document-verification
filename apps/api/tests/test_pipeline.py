@@ -23,6 +23,7 @@ from app.pipeline.normalize import (
     normalize_place,
     parse_container_count,
     parse_weight_kg,
+    party_names_agree,
 )
 from app.pipeline.readers import PlainTextReader, ReaderError
 from app.pipeline.status import asserts_documents_attached
@@ -520,3 +521,40 @@ class TestLayoutDifferencesAreNotDefects:
             "---"
         )
         assert not is_readable(metadata_only)
+
+
+class TestPartyNameAgreement:
+    """Same party with its address on one side only, versus a different party
+    that happens to share a name prefix."""
+
+    @pytest.mark.parametrize(
+        ("si", "bl"),
+        [
+            ("AL GURG STATIONERY LLC", "AL GURG STATIONERY LLC P O BOX 5069 DUBAI"),
+            ("ROXCEL TRADING GMBH", "ROXCEL TRADING GMBH OPERNRING 3 5 1010 VIENNA AUSTRIA"),
+            ("NAGAPPA EXPORTS", "NAGAPPA EXPORTS NEW NO 23 L BLOCK 17TH STREET"),
+            (
+                "APRIL FINE PAPER TRADING",
+                "APRIL FINE PAPER TRADING ON BEHALF OF VITAL SOLUTIONS PTE LTD",
+            ),
+        ],
+    )
+    def test_address_on_one_side_is_the_same_party(self, si: str, bl: str) -> None:
+        assert party_names_agree(si, bl)
+
+    @pytest.mark.parametrize(
+        ("si", "bl"),
+        [
+            # email_145: the Singapore and Middle East arms are different companies.
+            ("APRIL FINE PAPER TRADING", "APRIL FINE PAPER TRADING FZE"),
+            ("APRIL FINE PAPER TRADING", "APRIL FINE PAPER TRADING FZE 813 4 EA DUBAI"),
+            ("VITAL SOLUTIONS", "VITAL SOLUTIONS PTE LTD"),
+            # Extra words with no number and no address opener are not an address.
+            ("EAST BRIGHT", "EAST BRIGHT PAPER MILLS"),
+            ("EAST BRIGHT FZ LLC", "UAB NOVAKOPA"),
+        ],
+    )
+    def test_a_different_entity_sharing_a_prefix_is_a_different_party(
+        self, si: str, bl: str
+    ) -> None:
+        assert not party_names_agree(si, bl)

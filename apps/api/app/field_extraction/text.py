@@ -112,9 +112,21 @@ def _compile_label_pattern() -> re.Pattern[str]:
         key=len,
         reverse=True,
     )
+    # A unit qualifier may follow any label - "TOTAL Gross Weight (KG):" as well
+    # as the listed "Gross Weight (KG)". Without this the longest alias that
+    # fits ("Total Gross Weight") matched, the space after it counted as the
+    # separator, and "(KG): 131,322 KG" became an unparseable value.
+    #
+    # PDF text layers also glue a Title Case label straight onto an UPPER CASE
+    # value: "Notify Party/Intermediate ConsigneeNAGAPPA EXPORTS". With no
+    # separator the long alias could not match, the short "Notify" did, and the
+    # value became "Party/Intermediate ConsigneeNAGAPPA EXPORTS" - a false
+    # mismatch. A lowercase-to-uppercase boundary is accepted as a separator.
+    # It is matched case-sensitively; case-insensitive, it would split any word.
     return re.compile(
         rf"^(?P<indent>\s*)(?P<label>{'|'.join(re.escape(alias) for alias in aliases)})"
-        r"(?:\s*:\s*|\s+)(?P<value>.*?)\s*$",
+        r"(?P<unit>\s*\(\s*(?:KGS?|MTS?|TONS?)\s*\))?"
+        r"(?:\s*:\s*|\s+|(?-i:(?<=[a-z])(?=[A-Z])))(?P<value>.*?)\s*$",
         re.IGNORECASE,
     )
 
@@ -128,6 +140,8 @@ FUZZY_DELIMITED_LABEL_PATTERN = re.compile(
     re.IGNORECASE,
 )
 GENERIC_LABEL_PATTERN = re.compile(r"^\s*[^:\n]{1,80}:\s*")
+# A trailing weight-unit qualifier on a label, spaced or glued: "(KG)", "(kgs)".
+UNIT_QUALIFIER_PATTERN = re.compile(r"\s*\(\s*(?:KGS?|MTS?|TONS?)\s*\)\s*$", re.IGNORECASE)
 DECORATED_PLACEHOLDER_PATTERN = re.compile(
     r"^(?:_+|\?+|-+)(?:\s*(?:KG|KGS|MT|MTS|TONS?))?$",
     re.IGNORECASE,
@@ -267,9 +281,12 @@ class TextFieldExtractor:
     def _match_label(line: _TextLine) -> _LabelMatch | None:
         match = LABEL_PATTERN.match(line.body)
         if match is not None:
-            raw_label = match.group("label")
+            alias = match.group("label")
+            # Keep the unit on the label: the weight normaliser reads it when
+            # the value itself carries no unit.
+            raw_label = alias + (match.group("unit") or "")
             return _LabelMatch(
-                field=LABEL_TO_FIELD[raw_label.casefold()],
+                field=LABEL_TO_FIELD[alias.casefold()],
                 raw_label=raw_label,
                 inline_value=match.group("value").strip(),
                 label_start=len(match.group("indent")),
@@ -302,13 +319,19 @@ class TextFieldExtractor:
 
     @staticmethod
     def _closest_label(raw_label: str) -> tuple[ComparisonField, float] | None:
-        candidate = TextFieldExtractor._normalize_label(raw_label)
+        # A unit qualifier is not part of the label's identity. Left in, a glued
+        # "(KGS)" on "TOTAL Gross Weightss(KGS)" added three edits and pushed a
+        # recognisable label past the distance limit; stripped on both sides,
+        # the comparison is between the words that actually name the field.
+        candidate = TextFieldExtractor._normalize_label(UNIT_QUALIFIER_PATTERN.sub("", raw_label))
         if len(candidate) < 6:
             return None
         matches: list[tuple[float, int, ComparisonField]] = []
         for field, aliases in FIELD_LABELS.items():
             for alias in aliases:
-                normalized_alias = TextFieldExtractor._normalize_label(alias)
+                normalized_alias = TextFieldExtractor._normalize_label(
+                    UNIT_QUALIFIER_PATTERN.sub("", alias)
+                )
                 distance = TextFieldExtractor._levenshtein_distance(candidate, normalized_alias)
                 similarity = 1 - distance / max(len(candidate), len(normalized_alias))
                 matches.append((similarity, -distance, field))

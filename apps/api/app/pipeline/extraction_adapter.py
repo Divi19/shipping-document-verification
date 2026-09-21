@@ -115,8 +115,7 @@ def _format_locator(locator: TextSpanLocator | TableCellLocator | PageRegionLoca
         )
     if isinstance(locator, TableCellLocator):
         return (
-            f"table {locator.table_index}; row {locator.row_index}; "
-            f"column {locator.column_index}"
+            f"table {locator.table_index}; row {locator.row_index}; column {locator.column_index}"
         )
     if isinstance(locator, PageRegionLocator):
         return f"page {locator.page_number}; region {locator.bounding_box}"

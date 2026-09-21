@@ -204,17 +204,18 @@ export function PipelineWorkbench({ apiConnected }: { apiConnected: boolean }) {
       )}
 
       <section className="flow-strip" aria-label="Pipeline stages">
+        {/* Numbered in the order a case moves through them. */}
         {[
-          ["1", "Ingest", "Read document"],
-          ["5", "Extract", "Field candidates"],
-          ["6", "Verify", "Evidence checks"],
-          ["7", "Normalize", "Typed values"],
-          ["8", "Compare", "SI against BL"],
-          ["QA", "Gate", "Deterministic checks"],
-          ["10", "Report", "Final result"],
-        ].map(([number, title, detail]) => (
-          <div className="flow-step" key={number}>
-            <span>{number}</span>
+          ["Ingest", "Read document"],
+          ["Extract", "Field candidates"],
+          ["Verify", "Evidence checks"],
+          ["Normalize", "Typed values"],
+          ["Compare", "SI against BL"],
+          ["QA gate", "Deterministic checks"],
+          ["Report", "Final result"],
+        ].map(([title, detail], index) => (
+          <div className="flow-step" key={title}>
+            <span>{index + 1}</span>
             <div>
               <strong>{title}</strong>
               <small>{detail}</small>
