@@ -51,6 +51,12 @@ Do not commit `.env`, local credentials, service-role keys, or other secrets.
 `SDOC_DATA_DIR` may point to an alternate participant-bundle directory. When it is unset,
 the API uses `local-data/sdoc-hackathon-bundle`.
 
+Gemini fallbacks are optional and disabled by default. Deterministic extraction remains the
+primary path. To opt in, set `GEMINI_ENABLE_FALLBACK=true`, provide `GEMINI_API_KEY`, and
+optionally override `GEMINI_MODEL`. Semantic candidates are accepted only for unresolved
+fields and only when their raw values are supported by exact document evidence. Enabling a
+cloud fallback may consume the quota or billing associated with the supplied API key.
+
 ## Local development
 
 Start FastAPI in one terminal:

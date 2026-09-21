@@ -16,6 +16,8 @@ from app.models.extraction import (
     TextSpanLocator,
 )
 
+from .semantic import SemanticFieldFallback
+
 FIELD_LABELS: dict[ComparisonField, tuple[str, ...]] = {
     ComparisonField.SHIPPER: (
         "Shipper",
@@ -129,6 +131,9 @@ class TextFieldExtractor:
 
     confidence = 0.98
 
+    def __init__(self, semantic_fallback: SemanticFieldFallback | None = None) -> None:
+        self.semantic_fallback = semantic_fallback
+
     def extract(
         self,
         document: ExtractedContent,
@@ -198,12 +203,20 @@ class TextFieldExtractor:
             )
 
         diagnostics = self._build_diagnostics(candidates)
-        return DocumentFieldCandidates(
+        deterministic = DocumentFieldCandidates(
             document_role=document_role,
             source_filename=source_filename,
             candidates=candidates,
             diagnostics=diagnostics,
         )
+        if self.semantic_fallback is None:
+            return deterministic
+        return self.semantic_fallback.augment(text, deterministic)
+
+    def close(self) -> None:
+        """Release optional semantic-provider resources."""
+        if self.semantic_fallback is not None:
+            self.semantic_fallback.close()
 
     @staticmethod
     def _split_lines(text: str) -> list[_TextLine]:
@@ -291,6 +304,7 @@ class TextFieldExtractor:
 def extract_text_fields(
     document: ExtractedContent,
     document_role: DocumentRole,
+    semantic_fallback: SemanticFieldFallback | None = None,
 ) -> DocumentFieldCandidates:
     """Convenience boundary between document ingestion and Box 5."""
-    return TextFieldExtractor().extract(document, document_role)
+    return TextFieldExtractor(semantic_fallback).extract(document, document_role)
