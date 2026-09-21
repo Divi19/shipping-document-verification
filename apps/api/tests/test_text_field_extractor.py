@@ -184,3 +184,46 @@ def test_participant_txt_examples_produce_all_seven_fields(
 
     assert {candidate.field for candidate in result.candidates} == set(ComparisonField)
     assert result.diagnostics == []
+
+
+# -- Label shapes found in the supplied PDF text layers -------------------------
+# Each of these produced a false result on the real dataset before it was fixed.
+
+
+def _single(text: str, field: ComparisonField) -> tuple[str, str]:
+    result = TextFieldExtractor().extract_text(text, "doc.pdf", DocumentRole.BILL_OF_LADING)
+    candidates = result.candidates_for(field)
+    assert candidates, f"{field.value} not extracted from {text!r}"
+    return candidates[0].raw_label, candidates[0].raw_value
+
+
+def test_unit_qualifier_after_an_unlisted_label_stays_on_the_label() -> None:
+    """ "Total Gross Weight (KG)" is not an alias; the value must not become
+    "(KG): 131,322 KG" (email_059, email_313)."""
+    label, value = _single("TOTAL Gross Weight (KG): 131,322 KG\n", ComparisonField.GROSS_WEIGHT_KG)
+    assert value == "131,322 KG"
+    assert label == "TOTAL Gross Weight (KG)"
+
+
+def test_damaged_label_with_a_glued_unit_is_still_recognised() -> None:
+    """ "Weightss(KGS)" is two edits from the label once the unit is set aside
+    (email_160, email_208 and four more)."""
+    _, value = _single("TOTAL Gross Weightss(KGS): 23,702 KG\n", ComparisonField.GROSS_WEIGHT_KG)
+    assert value == "23,702 KG"
+
+
+def test_label_glued_to_its_value_is_split_at_the_case_boundary() -> None:
+    """PDF text layers drop the gap between columns (email_407)."""
+    label, value = _single(
+        "Notify Party/Intermediate ConsigneeNAGAPPA EXPORTS\n", ComparisonField.NOTIFY_PARTY
+    )
+    assert label == "Notify Party/Intermediate Consignee"
+    assert value == "NAGAPPA EXPORTS"
+
+
+def test_case_boundary_split_does_not_break_ordinary_words() -> None:
+    """Case-insensitively, the boundary rule would split "POLICY" after "POL"."""
+    result = TextFieldExtractor().extract_text(
+        "POLICY NUMBER 5510\n", "doc.pdf", DocumentRole.BILL_OF_LADING
+    )
+    assert not result.candidates_for(ComparisonField.PORT_OF_LOADING)

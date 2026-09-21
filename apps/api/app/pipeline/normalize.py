@@ -126,18 +126,43 @@ def format_number(amount: float) -> str:
     return str(int(amount)) if amount.is_integer() else f"{amount:g}"
 
 
+# Words that continue a party's *name* rather than begin its address. Text
+# after a shared prefix that starts with one of these names another entity:
+# "APRIL FINE PAPER TRADING" and "APRIL FINE PAPER TRADING (MIDDLE EAST) FZE"
+# are different companies, not one company with an address appended.
+_ENTITY_DESIGNATORS = frozenset(
+    {
+        "AB", "AG", "AS", "BHD", "BV", "CO", "CORP", "CORPORATION", "COMPANY",
+        "FZ", "FZC", "FZCO", "FZE", "GMBH", "INC", "JSC", "KG", "LLC", "LLP",
+        "LTD", "LIMITED", "NV", "OY", "PLC", "PTE", "PTY", "SA", "SDN", "SPA",
+        "SRL",
+    }
+)  # fmt: skip
+
+# Phrases that open the rest of a party block without carrying a number.
+_ADDRESS_OPENERS = ("ON BEHALF OF ", "C O ", "P O BOX ", "PO BOX ")
+
+
 def party_names_agree(first: str, second: str) -> bool:
-    """Whether two party values name the same party.
+    """Whether two normalised party values name the same party.
 
     Layouts differ in how much of the block belongs to the field: a Word BL
     keeps the name and its address in one cell, while the matching Excel SI
-    holds the name alone. When one value is the other followed by address
-    text, that is a layout difference, not a change of party - an amended
-    party replaces the name outright, so it never shares this prefix.
+    holds the name alone. When one value is the other followed by *address*
+    text, that is a layout difference, not a change of party.
+
+    The extra text must look like an address - it carries a number (street,
+    unit, box or postcode) or opens with a phrase such as "ON BEHALF OF" - and
+    must not begin with an entity designator such as FZE or LLC, which would
+    make it a different company sharing a name.
     """
     if first == second:
         return True
     shorter, longer = sorted((first, second), key=len)
-    if len(shorter) < 6:
+    if len(shorter) < 6 or not longer.startswith(f"{shorter} "):
         return False
-    return longer.startswith(f"{shorter} ")
+
+    extra = longer[len(shorter) :].strip()
+    if extra.split()[0] in _ENTITY_DESIGNATORS:
+        return False
+    return any(ch.isdigit() for ch in extra) or f"{extra} ".startswith(_ADDRESS_OPENERS)

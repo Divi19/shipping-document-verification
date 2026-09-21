@@ -204,6 +204,7 @@ export function PipelineWorkbench({ apiConnected }: { apiConnected: boolean }) {
       )}
 
       <section className="flow-strip" aria-label="Pipeline stages">
+        {/* Retain the box numbers from the shared architecture diagram. */}
         {[
           ["1", "Ingest", "Read document"],
           ["5", "Extract", "Field candidates"],

@@ -12,7 +12,7 @@
     "build": "pnpm contracts:generate && pnpm --filter @sdoc/contracts build && pnpm --filter @sdoc/web build && pnpm build:api",
     "build:api": "uv --directory apps/api run python -m compileall -q app",
     "contracts:generate": "pnpm api:openapi && pnpm --filter @sdoc/contracts generate",
-    "dev:api": "uv --directory apps/api run uvicorn app.main:app --reload",
+    "dev:api": "uv --directory apps/api run uvicorn app.main:app --reload --reload-dir app",
     "dev:web": "pnpm --filter @sdoc/web dev",
     "format": "prettier --write . && uv --directory apps/api run ruff format .",
     "format:check": "prettier --check . && uv --directory apps/api run ruff format --check .",

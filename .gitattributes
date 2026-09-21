@@ -1,0 +1,16 @@
+# Check every text file out with LF on every platform.
+#
+# The repository stores LF, but Windows clones default to core.autocrlf=true
+# and write CRLF to disk. Prettier then flags every file, so `pnpm verify`
+# can never pass on Windows, and each `pnpm typecheck` leaves a spurious diff
+# on the generated contract. Pinning LF here makes checkouts identical
+# everywhere, whatever the local git setting.
+* text=auto eol=lf
+
+# Participant documents and other binaries are never line-ending converted.
+*.pdf binary
+*.xlsx binary
+*.docx binary
+*.png binary
+*.jpg binary
+*.ico binary

@@ -606,6 +606,14 @@ pre {
   .flow-strip {
     grid-template-columns: repeat(2, 1fr);
   }
+  /* Dividers separate columns: the right-hand tile of each row has none. */
+  .flow-step:nth-child(2n)::after {
+    display: none;
+  }
+  /* An odd step count leaves the last tile alone on its row; let it span. */
+  .flow-step:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
   .workspace {
     grid-template-columns: 1fr;
   }
