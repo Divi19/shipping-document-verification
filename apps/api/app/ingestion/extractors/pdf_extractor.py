@@ -356,9 +356,7 @@ class PDFExtractor(DocumentExtractor):
             document = pdfium.PdfDocument(content)
             try:
                 if len(document) > self.max_pdf_pages:
-                    raise ValueError(
-                        f"PDF has more than the configured {self.max_pdf_pages} pages"
-                    )
+                    raise ValueError(f"PDF has more than the configured {self.max_pdf_pages} pages")
                 for page_number in range(len(document)):
                     page = document[page_number]
                     try:

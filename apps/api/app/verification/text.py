@@ -18,7 +18,7 @@ from app.models.verification import (
 
 
 class TextEvidenceVerifier:
-    """Verify Box 5 TXT candidates against their cited source text."""
+    """Verify Box 5 text/PDF candidates against their cited source text."""
 
     def __init__(self, minimum_confidence: float = 0.8) -> None:
         if not 0 <= minimum_confidence <= 1:
@@ -31,8 +31,10 @@ class TextEvidenceVerifier:
         extracted: DocumentFieldCandidates,
     ) -> DocumentVerificationResult:
         """Verify evidence, confidence, and within-field consistency."""
-        if document.content_type != ContentType.TEXT:
-            raise ValueError("TextEvidenceVerifier only accepts text/plain documents")
+        if document.content_type not in {ContentType.TEXT, ContentType.PDF}:
+            raise ValueError(
+                "TextEvidenceVerifier only accepts text/plain or application/pdf documents"
+            )
         if document.source_filename != extracted.source_filename:
             raise ValueError("ingested and extracted source filenames do not match")
 

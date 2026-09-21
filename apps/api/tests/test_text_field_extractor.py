@@ -123,15 +123,16 @@ def test_skips_failed_ingestion_without_inventing_candidates() -> None:
     ]
 
 
-def test_rejects_non_text_document() -> None:
+def test_accepts_pdf_text_document() -> None:
     document = ExtractedContent(
         text="Shipper: Example Trading Ltd",
         content_type=ContentType.PDF,
         source_filename="sample.pdf",
     )
 
-    with pytest.raises(ValueError, match="text/plain"):
-        TextFieldExtractor().extract(document, DocumentRole.SHIPPING_INSTRUCTION)
+    result = TextFieldExtractor().extract(document, DocumentRole.SHIPPING_INSTRUCTION)
+
+    assert result.candidates[0].raw_value == "Example Trading Ltd"
 
 
 @pytest.mark.parametrize(

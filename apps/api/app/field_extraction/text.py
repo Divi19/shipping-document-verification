@@ -60,6 +60,7 @@ FIELD_LABELS: dict[ComparisonField, tuple[str, ...]] = {
         "Gross Wt (kgs)",
         "Gross Weight毛重(KGS)",
         "Total Gross Weight",
+        "Total Gross Wt (kgs)",
     ),
 }
 
@@ -110,7 +111,7 @@ def _compile_label_pattern() -> re.Pattern[str]:
     )
     return re.compile(
         rf"^(?P<indent>\s*)(?P<label>{'|'.join(re.escape(alias) for alias in aliases)})"
-        r"\s*:\s*(?P<value>.*?)\s*$",
+        r"(?:\s*:\s*|\s+)(?P<value>.*?)\s*$",
         re.IGNORECASE,
     )
 
@@ -127,7 +128,7 @@ DECORATED_PLACEHOLDER_PATTERN = re.compile(
 
 
 class TextFieldExtractor:
-    """Extract Box 5 candidates from a successfully ingested TXT document."""
+    """Extract Box 5 candidates from ingested plain text or PDF text layers."""
 
     confidence = 0.98
 
@@ -140,8 +141,10 @@ class TextFieldExtractor:
         document_role: DocumentRole,
     ) -> DocumentFieldCandidates:
         """Extract candidates from the structured ingestion result."""
-        if document.content_type != ContentType.TEXT:
-            raise ValueError("TextFieldExtractor only accepts text/plain documents")
+        if document.content_type not in {ContentType.TEXT, ContentType.PDF}:
+            raise ValueError(
+                "TextFieldExtractor only accepts text/plain or application/pdf documents"
+            )
         if not document.source_filename:
             raise ValueError("source_filename is required for extraction evidence")
         if document.status != IngestionStatus.SUCCESS:
@@ -154,13 +157,29 @@ class TextFieldExtractor:
                 source_filename=document.source_filename,
                 diagnostics=diagnostics,
             )
-        return self.extract_text(document.text, document.source_filename, document_role)
+        method = ExtractionMethod.LABEL_MAP
+        confidence = self.confidence
+        if document.metadata.get("extractor") == "tesseract":
+            method = ExtractionMethod.OCR
+            average = document.metadata.get("ocr_average_confidence")
+            if isinstance(average, int | float):
+                confidence = min(self.confidence, max(0.0, float(average) / 100))
+        return self.extract_text(
+            document.text,
+            document.source_filename,
+            document_role,
+            extraction_method=method,
+            confidence=confidence,
+        )
 
     def extract_text(
         self,
         text: str,
         source_filename: str,
         document_role: DocumentRole,
+        *,
+        extraction_method: ExtractionMethod = ExtractionMethod.LABEL_MAP,
+        confidence: float | None = None,
     ) -> DocumentFieldCandidates:
         """Extract candidates with exact text evidence and source-order retention."""
         if not source_filename:
@@ -197,8 +216,8 @@ class TextFieldExtractor:
                             source_text=source_text,
                         )
                     ],
-                    extraction_method=ExtractionMethod.LABEL_MAP,
-                    confidence=self.confidence,
+                    extraction_method=extraction_method,
+                    confidence=self.confidence if confidence is None else confidence,
                 )
             )
 

@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import os
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -24,7 +25,7 @@ class DocumentIngestionConfig:
     def __init__(
         self,
         gemini_api_key: str | None = None,
-        gemini_model: str = "gemini-2.5-flash-lite",
+        gemini_model: str | None = None,
         cache_dir: Path | None = None,
         cache_size_gb: float = 1.0,
         vision_fallback_threshold: float = 0.3,
@@ -36,8 +37,17 @@ class DocumentIngestionConfig:
         max_concurrent: int = 4,
         request_timeout: int = 30,
     ):
+        environment_fallback = os.getenv("GEMINI_ENABLE_FALLBACK", "false").casefold() in {
+            "1",
+            "true",
+            "yes",
+        }
+        if gemini_api_key is None and enable_vision_fallback and environment_fallback:
+            gemini_api_key = os.getenv("GEMINI_API_KEY", "").strip()
+            if not gemini_api_key:
+                raise ValueError("GEMINI_ENABLE_FALLBACK requires GEMINI_API_KEY")
         self.gemini_api_key = gemini_api_key
-        self.gemini_model = gemini_model
+        self.gemini_model = gemini_model or os.getenv("GEMINI_MODEL", "gemini-2.5-flash-lite")
         self.cache_dir = cache_dir or Path(".cache/document_ingestion")
         self.cache_size_gb = cache_size_gb
         self.vision_fallback_threshold = vision_fallback_threshold

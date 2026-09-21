@@ -17,6 +17,7 @@ The FastAPI application and its tests do not require Supabase.
 - Node.js 22 or newer
 - Corepack
 - [uv](https://docs.astral.sh/uv/)
+- Tesseract 5, required only for local OCR of image-only PDFs
 - Docker Desktop or another Docker-compatible runtime, only when running local Supabase
 
 The repository pins pnpm through the `packageManager` field and Python 3.12 through `apps/api/.python-version`. `uv` downloads a compatible Python interpreter when needed.
@@ -51,11 +52,14 @@ Do not commit `.env`, local credentials, service-role keys, or other secrets.
 `SDOC_DATA_DIR` may point to an alternate participant-bundle directory. When it is unset,
 the API uses `local-data/sdoc-hackathon-bundle`.
 
+PDF ingestion first reads native text, then tries optional Docling and local Tesseract OCR.
+Install Tesseract with `brew install tesseract` on macOS or your platform's package manager.
+
 Gemini fallbacks are optional and disabled by default. Deterministic extraction remains the
 primary path. To opt in, set `GEMINI_ENABLE_FALLBACK=true`, provide `GEMINI_API_KEY`, and
-optionally override `GEMINI_MODEL`. Semantic candidates are accepted only for unresolved
-fields and only when their raw values are supported by exact document evidence. Enabling a
-cloud fallback may consume the quota or billing associated with the supplied API key.
+optionally override `GEMINI_MODEL`. The same setting enables evidence-gated semantic field
+extraction and PDF vision only after local methods are insufficient. Enabling a cloud fallback
+may consume the quota or billing associated with the supplied API key.
 
 ## Local development
 
