@@ -158,6 +158,15 @@ export function PipelineWorkbench({ apiConnected }: { apiConnected: boolean }) {
       field,
     ]) ?? [],
   );
+  const pipelineComplete =
+    result?.normalization?.document.fields.length === 7 &&
+    result.normalization.failures.length === 0;
+  const pipelineOutcome =
+    result?.ingestion.status !== "success"
+      ? result?.ingestion.status
+      : pipelineComplete
+        ? "complete"
+        : "needs review";
 
   return (
     <main>
@@ -334,8 +343,10 @@ export function PipelineWorkbench({ apiConnected }: { apiConnected: boolean }) {
                   <p className="eyebrow">Latest run</p>
                   <h2>{result.ingestion.filename}</h2>
                 </div>
-                <span className={`result-status ${result.ingestion.status}`}>
-                  {result.ingestion.status}
+                <span
+                  className={`result-status ${pipelineComplete ? "complete" : "partial"}`}
+                >
+                  {pipelineOutcome}
                 </span>
               </div>
               <div className="metric-grid">

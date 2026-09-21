@@ -42,6 +42,7 @@ class ExtractionMethod(StrEnum):
     REGEX = "regex"
     SEMANTIC_MODEL = "semantic_model"
     OCR = "ocr"
+    LEVENSHTEIN_LABEL = "levenshtein_label"
 
 
 class BoundingBox(ContractModel):

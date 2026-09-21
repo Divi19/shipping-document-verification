@@ -1,6 +1,7 @@
 """Deterministic required-field extraction from plain-text documents."""
 
 import re
+import unicodedata
 from collections import Counter
 from dataclasses import dataclass
 
@@ -101,6 +102,8 @@ class _LabelMatch:
     raw_label: str
     inline_value: str
     label_start: int
+    extraction_method: ExtractionMethod | None = None
+    confidence_ceiling: float | None = None
 
 
 def _compile_label_pattern() -> re.Pattern[str]:
@@ -120,6 +123,10 @@ LABEL_PATTERN = _compile_label_pattern()
 LABEL_TO_FIELD = {
     alias.casefold(): field for field, aliases in FIELD_LABELS.items() for alias in aliases
 }
+FUZZY_DELIMITED_LABEL_PATTERN = re.compile(
+    r"^(?P<indent>\s*)(?P<label>[^:\n]{4,40}?)[.:]\s+(?P<value>.+?)\s*$",
+    re.IGNORECASE,
+)
 GENERIC_LABEL_PATTERN = re.compile(r"^\s*[^:\n]{1,80}:\s*")
 DECORATED_PLACEHOLDER_PATTERN = re.compile(
     r"^(?:_+|\?+|-+)(?:\s*(?:KG|KGS|MT|MTS|TONS?))?$",
@@ -216,8 +223,8 @@ class TextFieldExtractor:
                             source_text=source_text,
                         )
                     ],
-                    extraction_method=extraction_method,
-                    confidence=self.confidence if confidence is None else confidence,
+                    extraction_method=match.extraction_method or extraction_method,
+                    confidence=self._candidate_confidence(match, confidence),
                 )
             )
 
@@ -259,15 +266,79 @@ class TextFieldExtractor:
     @staticmethod
     def _match_label(line: _TextLine) -> _LabelMatch | None:
         match = LABEL_PATTERN.match(line.body)
-        if match is None:
+        if match is not None:
+            raw_label = match.group("label")
+            return _LabelMatch(
+                field=LABEL_TO_FIELD[raw_label.casefold()],
+                raw_label=raw_label,
+                inline_value=match.group("value").strip(),
+                label_start=len(match.group("indent")),
+            )
+        fuzzy = FUZZY_DELIMITED_LABEL_PATTERN.match(line.body)
+        if fuzzy is None:
             return None
-        raw_label = match.group("label")
+        fuzzy_result = TextFieldExtractor._closest_label(fuzzy.group("label"))
+        if fuzzy_result is None:
+            return None
+        field, similarity = fuzzy_result
         return _LabelMatch(
-            field=LABEL_TO_FIELD[raw_label.casefold()],
-            raw_label=raw_label,
-            inline_value=match.group("value").strip(),
-            label_start=len(match.group("indent")),
+            field=field,
+            raw_label=fuzzy.group("label").strip(),
+            inline_value=fuzzy.group("value").strip(),
+            label_start=len(fuzzy.group("indent")),
+            extraction_method=ExtractionMethod.LEVENSHTEIN_LABEL,
+            confidence_ceiling=similarity * 0.95,
         )
+
+    def _candidate_confidence(
+        self,
+        match: _LabelMatch,
+        document_confidence: float | None,
+    ) -> float:
+        confidence = self.confidence if document_confidence is None else document_confidence
+        if match.confidence_ceiling is not None:
+            return min(confidence, match.confidence_ceiling)
+        return confidence
+
+    @staticmethod
+    def _closest_label(raw_label: str) -> tuple[ComparisonField, float] | None:
+        candidate = TextFieldExtractor._normalize_label(raw_label)
+        if len(candidate) < 6:
+            return None
+        matches: list[tuple[float, int, ComparisonField]] = []
+        for field, aliases in FIELD_LABELS.items():
+            for alias in aliases:
+                normalized_alias = TextFieldExtractor._normalize_label(alias)
+                distance = TextFieldExtractor._levenshtein_distance(candidate, normalized_alias)
+                similarity = 1 - distance / max(len(candidate), len(normalized_alias))
+                matches.append((similarity, -distance, field))
+        best_similarity, negated_distance, best_field = max(matches, key=lambda item: item[:2])
+        if best_similarity < 0.88 or -negated_distance > 2:
+            return None
+        return best_field, best_similarity
+
+    @staticmethod
+    def _normalize_label(value: str) -> str:
+        normalized = unicodedata.normalize("NFKC", value).casefold()
+        return "".join(character for character in normalized if character.isalnum())
+
+    @staticmethod
+    def _levenshtein_distance(left: str, right: str) -> int:
+        if len(left) < len(right):
+            left, right = right, left
+        previous = list(range(len(right) + 1))
+        for left_index, left_character in enumerate(left, start=1):
+            current = [left_index]
+            for right_index, right_character in enumerate(right, start=1):
+                current.append(
+                    min(
+                        current[-1] + 1,
+                        previous[right_index] + 1,
+                        previous[right_index - 1] + (left_character != right_character),
+                    )
+                )
+            previous = current
+        return previous[-1]
 
     def _read_value(
         self,
@@ -316,6 +387,11 @@ class TextFieldExtractor:
             f"Multiple candidates extracted for {field.value}: {count}."
             for field, count in sorted(counts.items(), key=lambda item: item[0].value)
             if count > 1
+        )
+        diagnostics.extend(
+            f"Levenshtein label recovery mapped {candidate.raw_label!r} to {candidate.field.value}."
+            for candidate in candidates
+            if candidate.extraction_method == ExtractionMethod.LEVENSHTEIN_LABEL
         )
         return diagnostics
 

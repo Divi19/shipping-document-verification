@@ -315,12 +315,14 @@ fieldset {
   padding: 7px 10px;
   text-transform: capitalize;
 }
-.result-status.success {
+.result-status.success,
+.result-status.complete {
   background: var(--green-soft);
   color: var(--green);
 }
 .result-status.unreadable,
-.result-status.failed {
+.result-status.failed,
+.result-status.partial {
   background: #fff0e3;
   color: var(--amber);
 }

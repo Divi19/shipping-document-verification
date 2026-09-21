@@ -135,6 +135,36 @@ def test_accepts_pdf_text_document() -> None:
     assert result.candidates[0].raw_value == "Example Trading Ltd"
 
 
+def test_levenshtein_recovers_ocr_damaged_labels_with_explicit_provenance() -> None:
+    result = TextFieldExtractor().extract_text(
+        "‘Shipper: Example Trading Ltd\nPortof Discharge: Rotterdam\nNotify. Example Agent",
+        "scan.pdf",
+        DocumentRole.SHIPPING_INSTRUCTION,
+        extraction_method=ExtractionMethod.OCR,
+        confidence=0.91,
+    )
+
+    values = {candidate.field: candidate for candidate in result.candidates}
+    assert values[ComparisonField.SHIPPER].raw_value == "Example Trading Ltd"
+    assert values[ComparisonField.PORT_OF_DISCHARGE].raw_value == "Rotterdam"
+    assert values[ComparisonField.NOTIFY_PARTY].raw_value == "Example Agent"
+    assert all(
+        candidate.extraction_method == ExtractionMethod.LEVENSHTEIN_LABEL
+        for candidate in values.values()
+    )
+    assert any("Levenshtein label recovery" in item for item in result.diagnostics)
+
+
+def test_levenshtein_threshold_does_not_map_booking_to_loading() -> None:
+    result = TextFieldExtractor().extract_text(
+        "Booking: 070500208599",
+        "scan.pdf",
+        DocumentRole.SHIPPING_INSTRUCTION,
+    )
+
+    assert result.candidates == []
+
+
 @pytest.mark.parametrize(
     ("filename", "role"),
     [

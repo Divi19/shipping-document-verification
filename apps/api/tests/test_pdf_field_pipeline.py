@@ -5,7 +5,7 @@ import pytest
 from app.config import resolve_data_dir
 from app.field_extraction import TextFieldExtractor
 from app.ingestion.extractors import ContentType, ExtractedContent
-from app.ingestion.extractors.pdf_extractor import PDFExtractor
+from app.ingestion.extractors.pdf_extractor import PDFExtractor, TesseractOcrEngine
 from app.models.extraction import ComparisonField, DocumentRole, ExtractionMethod
 from app.normalization import DocumentNormalizer
 from app.verification import TextEvidenceVerifier
@@ -82,3 +82,26 @@ def test_pdf_column_layout_without_colons_is_supported() -> None:
     values = {item.field: item.raw_value for item in candidates.candidates}
     assert values[ComparisonField.SHIPPER] == "Example Trading Ltd"
     assert values[ComparisonField.GROSS_WEIGHT_KG] == "8,500 KG"
+
+
+def test_scanned_participant_pdf_completes_with_tesseract_and_levenshtein() -> None:
+    path = resolve_data_dir() / "attachments" / "email_512_SI.pdf"
+    if not path.exists():
+        pytest.skip("Participant bundle is not available")
+    if not TesseractOcrEngine().is_available():
+        pytest.skip("Tesseract is not installed")
+
+    extractor = PDFExtractor(enable_vision_fallback=False)
+    document = extractor._extract_with_local_ocr(path.read_bytes(), path.name)
+    candidates = TextFieldExtractor().extract(document, DocumentRole.SHIPPING_INSTRUCTION)
+    verified = TextEvidenceVerifier().verify(document, candidates)
+    normalized = DocumentNormalizer().normalize(verified)
+
+    assert document.metadata["extractor"] == "tesseract"
+    assert {candidate.field for candidate in candidates.candidates} == set(ComparisonField)
+    assert any(
+        candidate.extraction_method == ExtractionMethod.LEVENSHTEIN_LABEL
+        for candidate in candidates.candidates
+    )
+    assert verified.unresolved_fields() == []
+    assert normalized.is_complete
