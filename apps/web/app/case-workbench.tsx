@@ -51,6 +51,8 @@ const labels: Record<string, string> = {
   gross_weight_kg: "Gross weight",
 };
 
+const recommendedCases = ["email_004", "email_059", "email_507"] as const;
+
 async function readError(response: Response): Promise<string> {
   try {
     const body = (await response.json()) as { detail?: string };
@@ -93,6 +95,12 @@ export function CaseWorkbench({ apiConnected }: { apiConnected: boolean }) {
     () => cases.find((item) => item.email_id === emailId),
     [cases, emailId],
   );
+
+  function chooseCase(id: string) {
+    setEmailId(id);
+    setReport(null);
+    setError(null);
+  }
 
   async function runCase(event: FormEvent) {
     event.preventDefault();
@@ -141,7 +149,7 @@ export function CaseWorkbench({ apiConnected }: { apiConnected: boolean }) {
             <label htmlFor="case-email">Participant inbox record</label>
             <select
               id="case-email"
-              onChange={(event) => setEmailId(event.target.value)}
+              onChange={(event) => chooseCase(event.target.value)}
               value={emailId}
             >
               {cases.map((item) => (
@@ -150,6 +158,20 @@ export function CaseWorkbench({ apiConnected }: { apiConnected: boolean }) {
                 </option>
               ))}
             </select>
+            <div className="quick-samples">
+              {recommendedCases
+                .filter((id) => cases.some((item) => item.email_id === id))
+                .map((id) => (
+                  <button key={id} onClick={() => chooseCase(id)} type="button">
+                    {id}
+                  </button>
+                ))}
+            </div>
+            <p className="hint">
+              Try email_004 for a confirmed mismatch, email_059 for a
+              correctable missing value, or email_507 for a missing-attachment
+              review.
+            </p>
           </div>
           {selected && (
             <div className="case-details">

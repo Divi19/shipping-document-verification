@@ -186,6 +186,10 @@ export function ReviewWorkbench({
   }
 
   async function processInbox() {
+    const confirmed = window.confirm(
+      "Process every unprocessed email in the 520-case inbox? This can take several minutes and may use Gemini fallback calls. For a quick review demo, run email_059 from the verification workbench instead.",
+    );
+    if (!confirmed) return;
     setProcessing(true);
     setError(null);
     try {
@@ -222,7 +226,7 @@ export function ReviewWorkbench({
       }. ${inboxRun.queued_for_review} cases need a person.`
     : queue && queue.items.length > 0
       ? `${openCount} open cases · ${counts?.resolved ?? 0} resolved`
-      : "Run the inbox through the pipeline to find the cases it cannot decide on its own.";
+      : "Run email_059 from the verification workbench for a quick review demo, or process the full inbox.";
 
   return (
     <main>
@@ -268,7 +272,7 @@ export function ReviewWorkbench({
           onClick={processInbox}
           type="button"
         >
-          {processing ? "Processing inbox…" : "Process inbox"}
+          {processing ? "Processing inbox…" : "Process full inbox"}
         </button>
       </section>
 

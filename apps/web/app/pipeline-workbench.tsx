@@ -211,6 +211,7 @@ export function PipelineWorkbench({ apiConnected }: { apiConnected: boolean }) {
           ["7", "Normalize", "Typed values"],
           ["8", "Compare", "SI against BL"],
           ["QA", "Gate", "Deterministic checks"],
+          ["9", "Review", "Exception triage"],
           ["10", "Report", "Final result"],
         ].map(([number, title, detail]) => (
           <div className="flow-step" key={number}>

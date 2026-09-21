@@ -113,7 +113,7 @@ h2 {
   border-radius: 14px;
   color: white;
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: repeat(8, 1fr);
   margin-bottom: 22px;
   overflow: hidden;
 }
