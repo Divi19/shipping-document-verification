@@ -29,6 +29,10 @@ class DocumentIngestionConfig:
         cache_size_gb: float = 1.0,
         vision_fallback_threshold: float = 0.3,
         enable_vision_fallback: bool = True,
+        enable_local_ocr: bool = True,
+        ocr_render_scale: float = 2.0,
+        max_pdf_pages: int = 20,
+        max_pdf_bytes: int = 25 * 1024 * 1024,
         max_concurrent: int = 4,
         request_timeout: int = 30,
     ):
@@ -38,6 +42,10 @@ class DocumentIngestionConfig:
         self.cache_size_gb = cache_size_gb
         self.vision_fallback_threshold = vision_fallback_threshold
         self.enable_vision_fallback = enable_vision_fallback
+        self.enable_local_ocr = enable_local_ocr
+        self.ocr_render_scale = ocr_render_scale
+        self.max_pdf_pages = max_pdf_pages
+        self.max_pdf_bytes = max_pdf_bytes
         self.max_concurrent = max_concurrent
         self.request_timeout = request_timeout
 
@@ -103,6 +111,10 @@ class DocumentIngestionService:
                     gemini_model=self.config.gemini_model,
                     vision_fallback_threshold=self.config.vision_fallback_threshold,
                     enable_vision_fallback=self.config.enable_vision_fallback,
+                    enable_local_ocr=self.config.enable_local_ocr,
+                    ocr_render_scale=self.config.ocr_render_scale,
+                    max_pdf_pages=self.config.max_pdf_pages,
+                    max_pdf_bytes=self.config.max_pdf_bytes,
                 )
             else:
                 self._extractors[content_type] = get_extractor(content_type)
@@ -156,6 +168,10 @@ class DocumentIngestionService:
             extractor_name,
             vision_fallback_threshold=self.config.vision_fallback_threshold,
             enable_vision_fallback=self.config.enable_vision_fallback,
+            enable_local_ocr=self.config.enable_local_ocr,
+            ocr_render_scale=self.config.ocr_render_scale,
+            max_pdf_pages=self.config.max_pdf_pages,
+            max_pdf_bytes=self.config.max_pdf_bytes,
         )
         if cached:
             logger.info("Cache hit for %s", filename)
@@ -187,6 +203,10 @@ class DocumentIngestionService:
             extracted,
             vision_fallback_threshold=self.config.vision_fallback_threshold,
             enable_vision_fallback=self.config.enable_vision_fallback,
+            enable_local_ocr=self.config.enable_local_ocr,
+            ocr_render_scale=self.config.ocr_render_scale,
+            max_pdf_pages=self.config.max_pdf_pages,
+            max_pdf_bytes=self.config.max_pdf_bytes,
         )
 
         return extracted

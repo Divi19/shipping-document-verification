@@ -277,7 +277,7 @@ class TestIntegrationWithSampleFiles:
         assert "|" in result.content  # Markdown table syntax
 
     def test_ingest_all_attachments(self, service):
-        """Ingest every attachment in sdoc-data and verify non‑empty output."""
+        """Ingest every attachment and require content or an explicit terminal status."""
         attachments_dir = resolve_data_dir() / "attachments"
         if not attachments_dir.is_dir():
             pytest.skip("Attachments directory not found")
@@ -285,7 +285,12 @@ class TestIntegrationWithSampleFiles:
             if not file_path.is_file():
                 continue
             result = service.ingest_file(file_path)
-            assert result.content, f"Empty content for {file_path.name}"
+            assert result.content or result.status in {
+                IngestionStatus.UNREADABLE,
+                IngestionStatus.UNSUPPORTED,
+            }, f"Missing typed outcome for {file_path.name}"
+            if not result.content:
+                assert result.diagnostics, f"Missing diagnostics for {file_path.name}"
 
 
 if __name__ == "__main__":
