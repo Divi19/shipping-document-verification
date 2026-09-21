@@ -29,19 +29,28 @@ def compare_field(si: FieldValue, bl: FieldValue) -> FieldComparison:
 
     if si.field in PARTY_FIELDS:
         matches = party_names_agree(si.normalized or "", bl.normalized or "")
-        note = (
-            None if si.normalized == bl.normalized else "same party, address included on one side"
-        )
+        if matches and si.normalized != bl.normalized:
+            note = "same party, address included on one side"
+        elif not matches:
+            note = "normalized SI and BL party values differ"
+        else:
+            note = None
         return FieldComparison(
             field=si.field,
             si=si,
             bl=bl,
             matches=matches,
-            note=note if matches else None,
+            note=note,
         )
 
     matches = si.normalized == bl.normalized
-    return FieldComparison(field=si.field, si=si, bl=bl, matches=matches)
+    return FieldComparison(
+        field=si.field,
+        si=si,
+        bl=bl,
+        matches=matches,
+        note=None if matches else "normalized SI and BL values differ",
+    )
 
 
 def compare_documents(
