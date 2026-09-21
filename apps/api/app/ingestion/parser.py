@@ -3,11 +3,11 @@
 import json
 import re
 from pathlib import Path
-from typing import Optional
+from typing import Any
 
-from app.models.email.schemas import ParsedEmail, EmailAttachment
-from app.ingestion.service import get_document_service, DocumentIngestionService
 from app.ingestion.markdown_builder import MarkdownDocument
+from app.ingestion.service import DocumentIngestionService, get_document_service
+from app.models.email.schemas import EmailAttachment, ParsedEmail
 
 
 class EmailParser:
@@ -16,8 +16,8 @@ class EmailParser:
     def __init__(
         self,
         inbox_dir: str,
-        document_service: Optional[DocumentIngestionService] = None,
-        attachments_base_dir: Optional[str] = None,
+        document_service: DocumentIngestionService | None = None,
+        attachments_base_dir: str | None = None,
     ):
         self.inbox_dir = Path(inbox_dir)
         self.document_service = document_service or get_document_service()
@@ -37,7 +37,7 @@ class EmailParser:
         data = json.loads(path.read_text())
         return self.parse_dict(data)
 
-    def parse_dict(self, data: dict) -> ParsedEmail:
+    def parse_dict(self, data: dict[str, Any]) -> ParsedEmail:
         """Parse email from dictionary."""
         email_id = data["email_id"]
         from_raw = data.get("from", "")
@@ -55,9 +55,9 @@ class EmailParser:
             attachments=attachments,
         )
 
-    def _parse_from(self, from_raw: str) -> tuple[Optional[str], str]:
+    def _parse_from(self, from_raw: str) -> tuple[str | None, str]:
         """Parse 'From' header into name and address."""
-        match = re.match(r'^(.+?)\s*<(.+?)>$', from_raw)
+        match = re.match(r"^(.+?)\s*<(.+?)>$", from_raw)
         if match:
             return match.group(1).strip(), match.group(2).strip()
         if "@" in from_raw:
@@ -70,11 +70,13 @@ class EmailParser:
         for path in attachment_paths:
             filename = Path(path).name
             content_type = self._guess_content_type(filename)
-            attachments.append(EmailAttachment(
-                path=path,
-                filename=filename,
-                content_type=content_type,
-            ))
+            attachments.append(
+                EmailAttachment(
+                    path=path,
+                    filename=filename,
+                    content_type=content_type,
+                )
+            )
         return attachments
 
     def _guess_content_type(self, filename: str) -> str:
@@ -127,9 +129,8 @@ class EmailParser:
             except Exception as e:
                 # Log error but continue with other attachments
                 import logging
-                logging.getLogger(__name__).warning(
-                    f"Failed to extract {attachment.filename}: {e}"
-                )
+
+                logging.getLogger(__name__).warning(f"Failed to extract {attachment.filename}: {e}")
                 results[attachment.filename] = MarkdownDocument(
                     content=f"[Error extracting {attachment.filename}: {e}]",
                     metadata={"error": str(e)},

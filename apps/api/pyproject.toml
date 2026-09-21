@@ -51,3 +51,16 @@ extend-immutable-calls = ["fastapi.Depends", "fastapi.Query", "fastapi.File", "f
 files = ["app", "scripts", "tests"]
 python_version = "3.12"
 strict = true
+
+# Third-party packages that ship no type information. Their own calls stay
+# unchecked; everything we write around them is still strictly typed.
+[[tool.mypy.overrides]]
+module = [
+  "diskcache.*",
+  "openpyxl.*",
+  "google.generativeai.*",
+  "docling.*",
+  "fitz.*",
+  "markdown.*",
+]
+ignore_missing_imports = true

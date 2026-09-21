@@ -2,14 +2,12 @@
 
 import io
 from pathlib import Path
-from typing import Optional
 
 from docx import Document
 from docx.document import Document as DocxDocument
 from docx.table import Table as DocxTable
-from docx.text.paragraph import Paragraph
 
-from .base import ContentType, DocumentExtractor, ExtractedContent, Table, Image
+from .base import ContentType, DocumentExtractor, ExtractedContent, Image, Table
 
 
 class DocxExtractor(DocumentExtractor):
@@ -19,7 +17,7 @@ class DocxExtractor(DocumentExtractor):
 
     def extract(self, file_path: Path) -> ExtractedContent:
         """Extract content from a DOCX file."""
-        doc = Document(file_path)
+        doc = Document(str(file_path))
         return self._extract_document(doc, file_path)
 
     def extract_bytes(self, content: bytes, filename: str) -> ExtractedContent:
@@ -74,7 +72,7 @@ class DocxExtractor(DocumentExtractor):
             metadata=metadata,
         )
 
-    def _extract_table(self, table: DocxTable, table_index: int) -> Optional[Table]:
+    def _extract_table(self, table: DocxTable, table_index: int) -> Table | None:
         """Extract a Word table as a Table object."""
         rows = []
         headers = None

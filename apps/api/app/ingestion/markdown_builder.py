@@ -2,8 +2,9 @@
 
 import logging
 from dataclasses import dataclass, field
+from typing import Any
 
-from .extractors.base import ExtractedContent, Table, Image
+from .extractors.base import ExtractedContent, Image, Table
 
 logger = logging.getLogger(__name__)
 
@@ -11,8 +12,9 @@ logger = logging.getLogger(__name__)
 @dataclass
 class MarkdownDocument:
     """Structured markdown document with metadata."""
+
     content: str
-    metadata: dict = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
     tables: list[Table] = field(default_factory=list)
     images: list[Image] = field(default_factory=list)
     # The file this content came from, so a citation can name its source.

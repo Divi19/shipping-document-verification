@@ -1,22 +1,24 @@
 """Tests for document ingestion service."""
 
-import pytest
+from collections.abc import Iterator
 from pathlib import Path
 
-from app.ingestion.service import DocumentIngestionService, DocumentIngestionConfig
+import pytest
+
 from app.ingestion.extractors import (
     ContentType,
+    DocxExtractor,
     TextExtractor,
     XLSXExtractor,
-    DocxExtractor,
 )
 from app.ingestion.markdown_builder import build_simple_markdown
+from app.ingestion.service import DocumentIngestionConfig, DocumentIngestionService
 
 
 class TestTextExtractor:
     """Tests for text extractor."""
 
-    def test_extract_file(self, tmp_path):
+    def test_extract_file(self, tmp_path: Path) -> None:
         """Test extracting from a text file."""
         test_file = tmp_path / "test.txt"
         test_file.write_text("Hello, world!\nThis is a test.")
@@ -28,7 +30,7 @@ class TestTextExtractor:
         assert "Hello, world!" in result.text
         assert result.source_filename == "test.txt"
 
-    def test_extract_bytes(self):
+    def test_extract_bytes(self) -> None:
         """Test extracting from bytes."""
         content = b"Plain text content\nWith multiple lines"
         extractor = TextExtractor()
@@ -41,7 +43,7 @@ class TestTextExtractor:
 class TestXLSXExtractor:
     """Tests for XLSX extractor."""
 
-    def test_extract_simple_spreadsheet(self, tmp_path):
+    def test_extract_simple_spreadsheet(self, tmp_path: Path) -> None:
         """Test extracting a simple spreadsheet."""
         import openpyxl
 
@@ -67,7 +69,7 @@ class TestXLSXExtractor:
 class TestDocxExtractor:
     """Tests for DOCX extractor."""
 
-    def test_extract_simple_document(self, tmp_path):
+    def test_extract_simple_document(self, tmp_path: Path) -> None:
         """Test extracting a simple Word document."""
         from docx import Document
 
@@ -75,7 +77,7 @@ class TestDocxExtractor:
         doc = Document()
         doc.add_paragraph("This is a test document.")
         doc.add_paragraph("It has multiple paragraphs.")
-        doc.save(test_file)
+        doc.save(str(test_file))
 
         extractor = DocxExtractor()
         result = extractor.extract(test_file)
@@ -84,7 +86,7 @@ class TestDocxExtractor:
         assert "This is a test document" in result.text
         assert "multiple paragraphs" in result.text
 
-    def test_extract_document_with_table(self, tmp_path):
+    def test_extract_document_with_table(self, tmp_path: Path) -> None:
         """Test extracting a Word document with a table."""
         from docx import Document
 
@@ -98,7 +100,7 @@ class TestDocxExtractor:
         table.rows[1].cells[1].text = "Row 1 Col 2"
         table.rows[2].cells[0].text = "Row 2 Col 1"
         table.rows[2].cells[1].text = "Row 2 Col 2"
-        doc.save(test_file)
+        doc.save(str(test_file))
 
         extractor = DocxExtractor()
         result = extractor.extract(test_file)
@@ -112,15 +114,13 @@ class TestDocxExtractor:
 class TestMarkdownBuilder:
     """Tests for markdown builder."""
 
-    def test_build_simple_markdown(self):
+    def test_build_simple_markdown(self) -> None:
         """Test building simple markdown from extracted content."""
         from app.ingestion.extractors import ExtractedContent, Table
 
         extracted = ExtractedContent(
             text="This is the main text content.",
-            tables=[
-                Table(headers=["Col1", "Col2"], rows=[["A", "B"], ["C", "D"]])
-            ],
+            tables=[Table(headers=["Col1", "Col2"], rows=[["A", "B"], ["C", "D"]])],
             content_type=ContentType.TEXT,
             source_filename="test.txt",
         )
@@ -141,7 +141,7 @@ class TestDocumentIngestionService:
     """Tests for the main document ingestion service."""
 
     @pytest.fixture
-    def service(self):
+    def service(self) -> Iterator[DocumentIngestionService]:
         """Create a service instance for testing."""
         config = DocumentIngestionConfig(
             cache_dir=Path(".cache/test_ingestion"),
@@ -151,21 +151,21 @@ class TestDocumentIngestionService:
         yield service
         service.shutdown()
 
-    def test_ingest_text(self, service):
+    def test_ingest_text(self, service: DocumentIngestionService) -> None:
         """Test ingesting plain text."""
         result = service.ingest_text("This is test content.\nWith multiple lines.")
 
         assert "This is test content" in result.content
         assert result.metadata["extractor"] == "TextExtractor"
 
-    def test_ingest_generic_text_source(self, service):
+    def test_ingest_generic_text_source(self, service: DocumentIngestionService) -> None:
         """Test the simple generic ingestion entry point used by callers."""
         result = service.ingest("This is pasted text from a user copy\nwith a second line.")
 
         assert "This is pasted text" in result.content
         assert result.metadata["extractor"] == "TextExtractor"
 
-    def test_ingest_txt_file(self, service, tmp_path):
+    def test_ingest_txt_file(self, service: DocumentIngestionService, tmp_path: Path) -> None:
         """Test ingesting a text file."""
         test_file = tmp_path / "sample.txt"
         test_file.write_text("File content here.")
@@ -175,7 +175,7 @@ class TestDocumentIngestionService:
         assert "File content here" in result.content
         assert result.source_filename == "sample.txt" or "sample.txt" in str(result.metadata)
 
-    def test_ingest_xlsx_file(self, service, tmp_path):
+    def test_ingest_xlsx_file(self, service: DocumentIngestionService, tmp_path: Path) -> None:
         """Test ingesting an Excel file."""
         import openpyxl
 
@@ -193,7 +193,7 @@ class TestDocumentIngestionService:
         assert "Widget A" in result.content
         assert "10.00" in result.content
 
-    def test_ingest_docx_file(self, service, tmp_path):
+    def test_ingest_docx_file(self, service: DocumentIngestionService, tmp_path: Path) -> None:
         """Test ingesting a Word document."""
         from docx import Document
 
@@ -201,14 +201,14 @@ class TestDocumentIngestionService:
         doc = Document()
         doc.add_paragraph("Shipping Document")
         doc.add_paragraph("Bill of Lading: BL-12345")
-        doc.save(test_file)
+        doc.save(str(test_file))
 
         result = service.ingest_file(test_file)
 
         assert "Shipping Document" in result.content
         assert "BL-12345" in result.content
 
-    def test_cache_works(self, service, tmp_path):
+    def test_cache_works(self, service: DocumentIngestionService, tmp_path: Path) -> None:
         """Test that caching works."""
         test_file = tmp_path / "cache_test.txt"
         test_file.write_text("Cache test content.")
@@ -229,7 +229,7 @@ class TestIntegrationWithSampleFiles:
     """Integration tests with actual sample files from sdoc-data."""
 
     @pytest.fixture
-    def service(self):
+    def service(self) -> Iterator[DocumentIngestionService]:
         config = DocumentIngestionConfig(
             cache_dir=Path(".cache/test_ingestion"),
             enable_vision_fallback=False,
@@ -238,7 +238,7 @@ class TestIntegrationWithSampleFiles:
         yield service
         service.shutdown()
 
-    def test_sample_txt_attachment(self, service):
+    def test_sample_txt_attachment(self, service: DocumentIngestionService) -> None:
         """Test with a real TXT attachment from sample data."""
         sample_file = Path("sdoc-data/attachments/email_001_BL.txt")
         if not sample_file.exists():
@@ -246,9 +246,12 @@ class TestIntegrationWithSampleFiles:
 
         result = service.ingest_file(sample_file)
         assert len(result.content) > 0
-        assert "email_001_BL.txt" in str(result.metadata) or result.metadata.get("source_filename") == "email_001_BL.txt"
+        assert (
+            "email_001_BL.txt" in str(result.metadata)
+            or result.metadata.get("source_filename") == "email_001_BL.txt"
+        )
 
-    def test_sample_xlsx_attachment(self, service):
+    def test_sample_xlsx_attachment(self, service: DocumentIngestionService) -> None:
         """Test with a real XLSX attachment from sample data."""
         sample_file = Path("sdoc-data/attachments/email_005_BL.xlsx")
         if not sample_file.exists():
@@ -259,7 +262,7 @@ class TestIntegrationWithSampleFiles:
         # Should have extracted table data
         assert "|" in result.content  # Markdown table syntax
 
-    def test_ingest_all_attachments(self, service):
+    def test_ingest_all_attachments(self, service: DocumentIngestionService) -> None:
         """Ingest every attachment in sdoc-data and verify non‑empty output."""
         attachments_dir = Path("sdoc-data/attachments")
         if not attachments_dir.is_dir():

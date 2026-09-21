@@ -1,9 +1,10 @@
 """Caching layer for document ingestion."""
 
 import hashlib
+import json
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import Any
 
 import diskcache
 
@@ -40,9 +41,8 @@ class DocumentCache:
         """Generate SHA256 hash of content."""
         return hashlib.sha256(content).hexdigest()
 
-    def _hash_config(self, **config) -> str:
+    def _hash_config(self, **config: Any) -> str:
         """Generate hash of extraction configuration."""
-        import json
         config_str = json.dumps(config, sort_keys=True)
         return hashlib.sha256(config_str.encode()).hexdigest()[:16]
 
@@ -50,8 +50,8 @@ class DocumentCache:
         self,
         content: bytes,
         extractor_name: str,
-        **config
-    ) -> Optional[ExtractedContent]:
+        **config: Any,
+    ) -> ExtractedContent | None:
         """Get cached extraction result if available."""
         content_hash = self._hash_content(content)
         config_hash = self._hash_config(**config)
@@ -68,7 +68,7 @@ class DocumentCache:
         return None
 
     @staticmethod
-    def _rehydrate(cached: dict) -> ExtractedContent:
+    def _rehydrate(cached: dict[str, Any]) -> ExtractedContent:
         """Rebuild an ExtractedContent from its cached dictionary.
 
         ExtractedContent is a dataclass, so it performs no coercion: passing the
@@ -78,9 +78,7 @@ class DocumentCache:
         return ExtractedContent(
             text=cached.get("text", ""),
             tables=[Table(**table) for table in cached.get("tables", [])],
-            images=[
-                Image(data=b"", **image) for image in cached.get("images", [])
-            ],
+            images=[Image(data=b"", **image) for image in cached.get("images", [])],
             metadata=cached.get("metadata", {}),
             content_type=ContentType(cached.get("content_type", ContentType.UNKNOWN.value)),
             source_filename=cached.get("source_filename", ""),
@@ -91,7 +89,7 @@ class DocumentCache:
         content: bytes,
         extractor_name: str,
         result: ExtractedContent,
-        **config
+        **config: Any,
     ) -> None:
         """Cache extraction result."""
         content_hash = self._hash_content(content)
@@ -103,11 +101,21 @@ class DocumentCache:
             cached_data = {
                 "text": result.text,
                 "tables": [
-                    {"headers": t.headers, "rows": t.rows, "sheet_name": t.sheet_name, "page_number": t.page_number}
+                    {
+                        "headers": t.headers,
+                        "rows": t.rows,
+                        "sheet_name": t.sheet_name,
+                        "page_number": t.page_number,
+                    }
                     for t in result.tables
                 ],
                 "images": [
-                    {"mime_type": img.mime_type, "alt_text": img.alt_text, "page_number": img.page_number, "caption": img.caption}
+                    {
+                        "mime_type": img.mime_type,
+                        "alt_text": img.alt_text,
+                        "page_number": img.page_number,
+                        "caption": img.caption,
+                    }
                     for img in result.images
                 ],
                 "metadata": result.metadata,
@@ -126,7 +134,7 @@ class DocumentCache:
         logger.info(f"Cleared {count} cache entries")
         return count
 
-    def stats(self) -> dict:
+    def stats(self) -> dict[str, Any]:
         """Get cache statistics."""
         return {
             "size_mb": self.cache.volume() / (1024 * 1024),
@@ -134,16 +142,16 @@ class DocumentCache:
             "directory": str(self.cache_dir),
         }
 
-    def close(self):
+    def close(self) -> None:
         """Close cache connection."""
         self.cache.close()
 
 
 # Global cache instance (initialized lazily)
-_cache_instance: Optional[DocumentCache] = None
+_cache_instance: DocumentCache | None = None
 
 
-def get_cache(cache_dir: Path = None, max_size_gb: float = 1.0) -> DocumentCache:
+def get_cache(cache_dir: Path | None = None, max_size_gb: float = 1.0) -> DocumentCache:
     """Get or create global cache instance."""
     global _cache_instance
     if _cache_instance is None:

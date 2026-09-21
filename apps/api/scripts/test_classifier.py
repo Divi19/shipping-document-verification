@@ -1,18 +1,19 @@
 #!/usr/bin/env python3
 """Test classifier against SDOC data."""
 
-import sys
 import json
+import sys
 from pathlib import Path
+from typing import Any
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from app.ingestion.parser import EmailParser
 from app.agents.email_classifier.classifier import EmailClassifier
+from app.ingestion.parser import EmailParser
 from app.models.email.schemas import EmailCategory
 
 
-def main():
+def main() -> None:
     # Default to project root sdoc-data (two levels up from apps/api)
     project_root = Path(__file__).parent.parent.parent.parent
     inbox_path = project_root / "sdoc-data"
@@ -32,6 +33,7 @@ def main():
 
     # Summary
     from collections import Counter
+
     counts = Counter(r.category.value for r in results)
     print("\n=== Classification Summary ===")
     for cat, count in counts.most_common():
@@ -49,7 +51,7 @@ def main():
                 print(f"    confidence={r.confidence:.2f} reason={r.reasoning}")
 
     # Export to JSON (submission format)
-    submission = {}
+    submission: dict[str, dict[str, Any]] = {}
     for r in results:
         submission[r.email_id] = {
             "category": r.category.value,

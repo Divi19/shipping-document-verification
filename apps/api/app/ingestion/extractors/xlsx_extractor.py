@@ -1,7 +1,6 @@
 """Excel (XLSX) extractor."""
 
 from pathlib import Path
-from typing import Optional
 
 import openpyxl
 from openpyxl.worksheet.worksheet import Worksheet
@@ -22,6 +21,7 @@ class XLSXExtractor(DocumentExtractor):
     def extract_bytes(self, content: bytes, filename: str) -> ExtractedContent:
         """Extract content from raw bytes."""
         import io
+
         workbook = openpyxl.load_workbook(io.BytesIO(content), read_only=True, data_only=True)
         return self._extract_workbook(workbook, Path(filename))
 
@@ -56,7 +56,7 @@ class XLSXExtractor(DocumentExtractor):
             metadata=metadata,
         )
 
-    def _extract_sheet(self, sheet: Worksheet, sheet_name: str) -> Optional[Table]:
+    def _extract_sheet(self, sheet: Worksheet, sheet_name: str) -> Table | None:
         """Extract a single sheet as a table."""
         rows = []
         headers = None

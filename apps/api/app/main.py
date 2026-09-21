@@ -1,5 +1,6 @@
 import re
 from pathlib import Path
+from typing import Any
 
 from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
 from pydantic import BaseModel
@@ -37,7 +38,7 @@ class IngestResponse(BaseModel):
     """Response model for document ingestion."""
 
     markdown: str
-    metadata: dict
+    metadata: dict[str, Any]
     tables_count: int
     images_count: int
 
@@ -170,7 +171,7 @@ async def ingest_email_attachments(
 @app.get("/ingest/cache/stats", tags=["ingestion"])
 def get_cache_stats(
     service: DocumentIngestionService = Depends(get_ingestion_service),
-) -> dict:
+) -> dict[str, Any]:
     """Get document ingestion cache statistics."""
     return service.get_cache_stats()
 
@@ -178,6 +179,6 @@ def get_cache_stats(
 @app.delete("/ingest/cache", tags=["ingestion"])
 def clear_cache(
     service: DocumentIngestionService = Depends(get_ingestion_service),
-) -> dict:
+) -> dict[str, int]:
     """Clear document ingestion cache."""
     return {"cleared_entries": service.clear_cache()}

@@ -1,33 +1,36 @@
 """Email data models."""
 
-from enum import Enum
+from enum import StrEnum
+
 from pydantic import BaseModel
-from typing import Optional
 
 
 class EmailAttachment(BaseModel):
     """Email attachment reference."""
+
     path: str
     filename: str
-    content_type: Optional[str] = None
+    content_type: str | None = None
 
 
 class ParsedEmail(BaseModel):
     """Parsed email with extracted header fields."""
+
     email_id: str
     from_address: str
-    from_name: Optional[str] = None
+    from_name: str | None = None
     subject: str
     body: str
     attachments: list[EmailAttachment]
-    thread_id: Optional[str] = None
-    in_reply_to: Optional[str] = None
-    references: Optional[str] = None
-    date: Optional[str] = None
+    thread_id: str | None = None
+    in_reply_to: str | None = None
+    references: str | None = None
+    date: str | None = None
 
 
-class EmailCategory(str, Enum):
+class EmailCategory(StrEnum):
     """Email classification categories."""
+
     BL_COMPARISON = "BL_COMPARISON"
     SI_REQUEST = "SI_REQUEST"
     INVOICE_QUERY = "INVOICE_QUERY"
@@ -35,8 +38,9 @@ class EmailCategory(str, Enum):
     SPAM = "SPAM"
 
 
-class DecidedBy(str, Enum):
+class DecidedBy(StrEnum):
     """Which mechanism produced a decision."""
+
     RULE = "rule"
     LLM = "llm"
 
@@ -48,6 +52,7 @@ class ClassifiedEmail(BaseModel):
     signal for reviewers, never evidence: the pipeline decides certainty from
     checks on extracted values, not from a self-reported score.
     """
+
     email_id: str
     category: EmailCategory
     confidence: float

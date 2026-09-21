@@ -7,17 +7,18 @@ needs attachment content.
 """
 
 import json
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from pathlib import Path
+from typing import Any
 
 from app.models.email.schemas import EmailAttachment, ParsedEmail
 
 
-def parse_email(record: dict[str, object]) -> ParsedEmail:
+def parse_email(record: dict[str, Any]) -> ParsedEmail:
     """Build a ParsedEmail from one inbox JSON record."""
+    paths: Sequence[Any] = record.get("attachments") or []
     attachments = [
-        EmailAttachment(path=str(path), filename=str(path).rsplit("/", 1)[-1])
-        for path in list(record.get("attachments") or [])
+        EmailAttachment(path=str(path), filename=str(path).rsplit("/", 1)[-1]) for path in paths
     ]
     return ParsedEmail(
         email_id=str(record["email_id"]),

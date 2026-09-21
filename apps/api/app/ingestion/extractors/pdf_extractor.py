@@ -1,23 +1,35 @@
 """PDF extractor with Docling (local) and Gemini Vision (fallback)."""
 
-import asyncio
 import base64
-import io
 import logging
+import os
 from pathlib import Path
-from typing import Optional
+from typing import Any
 
 import google.generativeai as genai
 
-from .base import ContentType, DocumentExtractor, ExtractedContent, Table, Image
+from .base import (
+    ContentType,
+    DocumentExtractor,
+    ExtractedContent,
+    ExtractionError,
+    Image,
+    Table,
+)
 
 logger = logging.getLogger(__name__)
 
+# Overridable so the model can be moved on without a code change. The legacy
+# google.generativeai package is deprecated; migrating to google-genai is
+# tracked separately, but the model id here must stay current either way.
+DEFAULT_VISION_MODEL = os.environ.get("GEMINI_VISION_MODEL", "gemini-2.0-flash")
+
 # Try to import docling, but make it optional
 try:
-    from docling.document_converter import DocumentConverter
     from docling.datamodel.base_models import InputFormat
     from docling.datamodel.pipeline_options import PdfPipelineOptions
+    from docling.document_converter import DocumentConverter
+
     DOCLING_AVAILABLE = True
 except ImportError:
     DOCLING_AVAILABLE = False
@@ -33,9 +45,10 @@ class PDFExtractor(DocumentExtractor):
 
     def __init__(
         self,
-        gemini_api_key: Optional[str] = None,
+        gemini_api_key: str | None = None,
         vision_fallback_threshold: float = 0.3,
         enable_vision_fallback: bool = True,
+        vision_model: str | None = None,
     ):
         """
         Initialize PDF extractor.
@@ -48,14 +61,17 @@ class PDFExtractor(DocumentExtractor):
         self.gemini_api_key = gemini_api_key
         self.vision_fallback_threshold = vision_fallback_threshold
         self.enable_vision_fallback = enable_vision_fallback and gemini_api_key is not None
-        self._docling_converter = None
-        self._gemini_model = None
+        self._docling_converter: Any = None
+        self._gemini_model: Any = None
+        self.vision_model = vision_model or DEFAULT_VISION_MODEL
 
         if self.enable_vision_fallback:
-            genai.configure(api_key=gemini_api_key)
-            self._gemini_model = genai.GenerativeModel("gemini-1.5-flash")
+            genai.configure(api_key=gemini_api_key)  # type: ignore[attr-defined]
+            self._gemini_model = genai.GenerativeModel(  # type: ignore[attr-defined]
+                self.vision_model
+            )
 
-    def _get_docling_converter(self):
+    def _get_docling_converter(self) -> Any:
         """Lazy initialization of Docling converter."""
         if not DOCLING_AVAILABLE:
             raise RuntimeError("Docling not installed. Install with: pip install docling")
@@ -67,9 +83,7 @@ class PDFExtractor(DocumentExtractor):
             pipeline_options.table_structure_options.do_cell_matching = True
 
             self._docling_converter = DocumentConverter(
-                format_options={
-                    InputFormat.PDF: pipeline_options
-                }
+                format_options={InputFormat.PDF: pipeline_options}
             )
         return self._docling_converter
 
@@ -87,7 +101,9 @@ class PDFExtractor(DocumentExtractor):
                 # Check if extraction is good enough
                 if self._is_extraction_sufficient(result):
                     return result
-                logger.info(f"Docling extraction insufficient for {filename}, trying vision fallback")
+                logger.info(
+                    f"Docling extraction insufficient for {filename}, trying vision fallback"
+                )
             except Exception as e:
                 logger.warning(f"Docling extraction failed for {filename}: {e}")
 
@@ -98,12 +114,13 @@ class PDFExtractor(DocumentExtractor):
             except Exception as e:
                 logger.error(f"Gemini Vision extraction failed for {filename}: {e}")
 
-        # Last resort: return basic extraction
-        return ExtractedContent(
-            text="",
-            content_type=ContentType.PDF,
-            source_filename=filename,
-            metadata={"error": "All extraction methods failed"},
+        # Nothing could read this file. Raise rather than returning an empty
+        # document, so it reaches the review queue as "unreadable" instead of
+        # looking like a PDF with no fields in it.
+        raise ExtractionError(
+            f"{filename}: no extraction method could read this PDF "
+            f"(Docling available: {DOCLING_AVAILABLE}, "
+            f"vision fallback: {self.enable_vision_fallback})"
         )
 
     def _extract_with_docling(self, content: bytes, filename: str) -> ExtractedContent:
@@ -112,6 +129,7 @@ class PDFExtractor(DocumentExtractor):
 
         # Write to temp file for Docling (it needs a file path)
         import tempfile
+
         with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
             tmp.write(content)
             tmp_path = tmp.name
@@ -127,7 +145,7 @@ class PDFExtractor(DocumentExtractor):
             tables = self._extract_tables_from_docling(doc)
 
             # Extract images (Docling doesn't easily expose images, but we can note their presence)
-            images = []
+            images: list[Image] = []
 
             return ExtractedContent(
                 text=markdown_text,
@@ -135,24 +153,27 @@ class PDFExtractor(DocumentExtractor):
                 images=images,
                 content_type=ContentType.PDF,
                 source_filename=filename,
-                metadata={"extractor": "docling", "page_count": len(doc.pages) if hasattr(doc, "pages") else 0},
+                metadata={
+                    "extractor": "docling",
+                    "page_count": len(doc.pages) if hasattr(doc, "pages") else 0,
+                },
             )
         finally:
             # Clean up temp file
+            import contextlib
             import os
-            try:
-                os.unlink(tmp_path)
-            except Exception:
-                pass
 
-    def _extract_tables_from_docling(self, doc) -> list[Table]:
+            with contextlib.suppress(OSError):
+                os.unlink(tmp_path)
+
+    def _extract_tables_from_docling(self, doc: Any) -> list[Table]:
         """Extract tables from Docling document."""
         tables = []
 
         # Docling stores tables in the document structure
         # This is a simplified extraction - actual implementation depends on Docling version
         try:
-            for i, table in enumerate(doc.tables):
+            for table in doc.tables:
                 # Convert Docling table to our Table format
                 headers = []
                 rows = []
@@ -165,11 +186,13 @@ class PDFExtractor(DocumentExtractor):
                         rows = [[str(cell.text) for cell in row] for row in grid[1:]]
 
                 if headers or rows:
-                    tables.append(Table(
-                        headers=headers,
-                        rows=rows,
-                        page_number=getattr(table, "page_number", None),
-                    ))
+                    tables.append(
+                        Table(
+                            headers=headers,
+                            rows=rows,
+                            page_number=getattr(table, "page_number", None),
+                        )
+                    )
         except Exception as e:
             logger.warning(f"Failed to extract tables from Docling: {e}")
 
@@ -214,8 +237,10 @@ class PDFExtractor(DocumentExtractor):
         return ExtractedContent(
             text="\n\n".join(all_text),
             tables=all_tables,
-            images=[Image(data=img, mime_type="image/png", page_number=i+1)
-                    for i, img in enumerate(images_data)],
+            images=[
+                Image(data=img, mime_type="image/png", page_number=i + 1)
+                for i, img in enumerate(images_data)
+            ],
             content_type=ContentType.PDF,
             source_filename=filename,
             metadata={"extractor": "gemini-vision", "page_count": len(images_data)},
@@ -243,7 +268,7 @@ class PDFExtractor(DocumentExtractor):
         doc.close()
         return images
 
-    def _process_page_with_vision(self, image_bytes: bytes, page_number: int) -> dict:
+    def _process_page_with_vision(self, image_bytes: bytes, page_number: int) -> dict[str, Any]:
         """Process a single page image with Gemini Vision."""
         # Encode image as base64
         image_b64 = base64.b64encode(image_bytes).decode("utf-8")
@@ -262,13 +287,15 @@ Return the result as JSON with:
   ]
 }"""
 
-        response = self._gemini_model.generate_content([
-            prompt,
-            {"mime_type": "image/png", "data": image_b64}
-        ])
+        model = self._gemini_model
+        if model is None:  # pragma: no cover - guarded by the caller
+            raise ExtractionError("Gemini model not initialised")
+
+        response = model.generate_content([prompt, {"mime_type": "image/png", "data": image_b64}])
 
         # Parse JSON response
         import json
+
         try:
             result = json.loads(response.text)
             tables = [

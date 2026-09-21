@@ -2,13 +2,22 @@
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+from enum import StrEnum
 from pathlib import Path
-from typing import Optional
-from enum import Enum
+from typing import Any
 
 
-class ContentType(str, Enum):
+class ExtractionError(RuntimeError):
+    """A document could not be read by any available method.
+
+    Raised rather than returning empty content, so callers can distinguish an
+    unreadable file from a document that genuinely has nothing in it.
+    """
+
+
+class ContentType(StrEnum):
     """Supported document content types."""
+
     PDF = "application/pdf"
     DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -19,10 +28,11 @@ class ContentType(str, Enum):
 @dataclass
 class Table:
     """Represents an extracted table."""
+
     headers: list[str]
     rows: list[list[str]]
-    sheet_name: Optional[str] = None
-    page_number: Optional[int] = None
+    sheet_name: str | None = None
+    page_number: int | None = None
 
     def to_markdown(self) -> str:
         """Convert table to GitHub-flavored markdown."""
@@ -66,20 +76,22 @@ class Table:
 @dataclass
 class Image:
     """Represents an extracted image with optional OCR text."""
+
     data: bytes
     mime_type: str
-    alt_text: Optional[str] = None
-    page_number: Optional[int] = None
-    caption: Optional[str] = None
+    alt_text: str | None = None
+    page_number: int | None = None
+    caption: str | None = None
 
 
 @dataclass
 class ExtractedContent:
     """Container for extracted document content."""
+
     text: str = ""
     tables: list[Table] = field(default_factory=list)
     images: list[Image] = field(default_factory=list)
-    metadata: dict = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
     content_type: ContentType = ContentType.UNKNOWN
     source_filename: str = ""
 

@@ -19,7 +19,10 @@ api_root = Path(__file__).resolve().parents[1]
 repo_root = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(api_root))
 
-from app.ingestion.service import DocumentIngestionService, DocumentIngestionConfig
+from app.ingestion.service import (  # noqa: E402 - needs the sys.path line above
+    DocumentIngestionConfig,
+    DocumentIngestionService,
+)
 
 
 def main() -> None:
@@ -43,11 +46,7 @@ def main() -> None:
             continue
         try:
             result = service.ingest_file(src_path)
-            # ``ingest_file`` returns either a MarkdownDocument or a plain string.
-            # The service currently returns a string (markdown).  If the API ever
-            # changes to return an object with a ``content`` attribute we handle that
-            # gracefully.
-            markdown_text = getattr(result, "content", result)
+            markdown_text = result.content
             # Write a .md file using the same stem as the source.
             dst_path = out_dir / f"{src_path.stem}.md"
             dst_path.write_text(markdown_text, encoding="utf-8")

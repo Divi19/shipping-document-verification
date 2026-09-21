@@ -1,13 +1,13 @@
 """Models package."""
 
-from app.models.health import HealthResponse
 from app.models.email.schemas import (
-    ParsedEmail,
-    EmailAttachment,
-    EmailCategory,
     ClassifiedEmail,
     DecidedBy,
+    EmailAttachment,
+    EmailCategory,
+    ParsedEmail,
 )
+from app.models.health import HealthResponse
 
 __all__ = [
     "HealthResponse",

@@ -4,17 +4,15 @@ import asyncio
 import logging
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import Optional
+from typing import Any
 
+from .cache import DocumentCache, get_cache
 from .extractors import (
     ContentType,
-    DocumentExtractor,
-    ExtractedContent,
     get_extractor,
 )
 from .extractors.base import DocumentExtractor as BaseExtractor
-from .cache import DocumentCache, get_cache
-from .markdown_builder import MarkdownBuilder, MarkdownDocument, build_simple_markdown
+from .markdown_builder import MarkdownDocument, build_simple_markdown
 
 logger = logging.getLogger(__name__)
 
@@ -24,8 +22,8 @@ class DocumentIngestionConfig:
 
     def __init__(
         self,
-        gemini_api_key: Optional[str] = None,
-        cache_dir: Optional[Path] = None,
+        gemini_api_key: str | None = None,
+        cache_dir: Path | None = None,
         cache_size_gb: float = 1.0,
         vision_fallback_threshold: float = 0.3,
         enable_vision_fallback: bool = True,
@@ -44,17 +42,17 @@ class DocumentIngestionConfig:
 class DocumentIngestionService:
     """Main service for document ingestion."""
 
-    def __init__(self, config: Optional[DocumentIngestionConfig] = None):
+    def __init__(self, config: DocumentIngestionConfig | None = None):
         self.config = config or DocumentIngestionConfig()
-        self._cache: Optional[DocumentCache] = None
+        self._cache: DocumentCache | None = None
         self._executor = ThreadPoolExecutor(max_workers=self.config.max_concurrent)
         self._extractors: dict[ContentType, BaseExtractor] = {}
 
     def ingest(
         self,
         source: str | bytes | bytearray | Path | object,
-        filename: Optional[str] = None,
-        content_type: Optional[ContentType | str] = None,
+        filename: str | None = None,
+        content_type: ContentType | str | None = None,
     ) -> MarkdownDocument:
         """Simple public entry point for any supported document input.
 
@@ -200,7 +198,7 @@ class DocumentIngestionService:
         tasks = [self.ingest_bytes_async(content, filename) for content, filename in files]
         return await asyncio.gather(*tasks)
 
-    def get_cache_stats(self) -> dict:
+    def get_cache_stats(self) -> dict[str, Any]:
         """Get cache statistics."""
         return self.cache.stats()
 
@@ -208,7 +206,7 @@ class DocumentIngestionService:
         """Clear the cache."""
         return self.cache.clear()
 
-    def shutdown(self):
+    def shutdown(self) -> None:
         """Shutdown the service."""
         self._executor.shutdown(wait=True)
         if self._cache:
@@ -216,10 +214,10 @@ class DocumentIngestionService:
 
 
 # Global service instance (for FastAPI dependency injection)
-_service_instance: Optional[DocumentIngestionService] = None
+_service_instance: DocumentIngestionService | None = None
 
 
-def get_document_service(config: Optional[DocumentIngestionConfig] = None) -> DocumentIngestionService:
+def get_document_service(config: DocumentIngestionConfig | None = None) -> DocumentIngestionService:
     """Get or create global document ingestion service."""
     global _service_instance
     if _service_instance is None:
@@ -227,7 +225,7 @@ def get_document_service(config: Optional[DocumentIngestionConfig] = None) -> Do
     return _service_instance
 
 
-def set_document_service(service: DocumentIngestionService):
+def set_document_service(service: DocumentIngestionService) -> None:
     """Set global document ingestion service (for testing)."""
     global _service_instance
     _service_instance = service
@@ -235,8 +233,8 @@ def set_document_service(service: DocumentIngestionService):
 
 def ingest_document(
     source: str | bytes | bytearray | Path | object,
-    filename: Optional[str] = None,
-    config: Optional[DocumentIngestionConfig] = None,
+    filename: str | None = None,
+    config: DocumentIngestionConfig | None = None,
 ) -> MarkdownDocument:
     """Convenience helper for the rest of the pipeline."""
     return get_document_service(config).ingest(source, filename=filename)

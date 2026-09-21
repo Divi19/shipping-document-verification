@@ -1,22 +1,22 @@
 """Document ingestion module."""
 
-from app.ingestion.parser import EmailParser
-from app.ingestion.service import (
-    DocumentIngestionService,
-    DocumentIngestionConfig,
-    get_document_service,
-)
-from app.ingestion.markdown_builder import MarkdownBuilder, MarkdownDocument, build_simple_markdown
 from app.ingestion.extractors import (
     ContentType,
     DocumentExtractor,
+    DocxExtractor,
     ExtractedContent,
-    Table,
     Image,
+    PDFExtractor,
+    Table,
     TextExtractor,
     XLSXExtractor,
-    DocxExtractor,
-    PDFExtractor,
+)
+from app.ingestion.markdown_builder import MarkdownBuilder, MarkdownDocument, build_simple_markdown
+from app.ingestion.parser import EmailParser
+from app.ingestion.service import (
+    DocumentIngestionConfig,
+    DocumentIngestionService,
+    get_document_service,
 )
 
 __all__ = [
