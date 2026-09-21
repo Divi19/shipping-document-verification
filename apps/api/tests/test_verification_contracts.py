@@ -15,6 +15,8 @@ from app.models.extraction import (
 )
 from app.models.verification import (
     CandidateAssessment,
+    DocumentVerificationResult,
+    FieldVerificationResult,
     NormalizationRule,
     NormalizationStep,
     NormalizedDocument,
@@ -129,6 +131,25 @@ def test_verified_selection_retains_conflicting_alternative() -> None:
     )
 
     assert verified.alternatives == [conflicting]
+
+
+def test_unresolved_field_requires_an_issue() -> None:
+    with pytest.raises(ValidationError, match="at least one issue"):
+        FieldVerificationResult(field=ComparisonField.SHIPPER)
+
+
+def test_document_verification_covers_all_seven_fields() -> None:
+    with pytest.raises(ValidationError, match="all required fields"):
+        DocumentVerificationResult(
+            document_role=DocumentRole.SHIPPING_INSTRUCTION,
+            source_filename="sample_si.txt",
+            fields=[
+                FieldVerificationResult(
+                    field=ComparisonField.SHIPPER,
+                    issues=[VerificationIssue.MISSING_CANDIDATE],
+                )
+            ],
+        )
 
 
 def test_normalization_preserves_an_auditable_transformation_trail() -> None:

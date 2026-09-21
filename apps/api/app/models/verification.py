@@ -28,6 +28,8 @@ class VerificationIssue(StrEnum):
 
     EVIDENCE_NOT_FOUND = "evidence_not_found"
     CONFLICTING_CANDIDATES = "conflicting_candidates"
+    MISSING_CANDIDATE = "missing_candidate"
+    LOW_CONFIDENCE = "low_confidence"
     ROLE_MISMATCH = "role_mismatch"
     LIKELY_OCR_ERROR = "likely_ocr_error"
     SHIPMENT_MISMATCH = "shipment_mismatch"
@@ -67,6 +69,76 @@ class VerifiedField(ContractModel):
         if any(item.candidate.field != self.field for item in assessments):
             raise ValueError("all assessments must describe the verified field")
         return self
+
+
+class FieldVerificationResult(ContractModel):
+    """Box 6 result for one required field, including unresolved outcomes."""
+
+    field: ComparisonField
+    assessments: list[CandidateAssessment] = Field(default_factory=list)
+    verified_field: VerifiedField | None = None
+    issues: list[VerificationIssue] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def validate_result(self) -> Self:
+        """Require either one verified selection or explicit unresolved issues."""
+        if any(item.candidate.field != self.field for item in self.assessments):
+            raise ValueError("all assessments must describe the result field")
+        if self.verified_field is None:
+            if not self.issues:
+                raise ValueError("an unresolved field must identify at least one issue")
+            return self
+
+        if self.verified_field.field != self.field:
+            raise ValueError("verified field does not match the result field")
+        if self.issues:
+            raise ValueError("a resolved field cannot have unresolved issues")
+        represented = [
+            self.verified_field.selected,
+            *self.verified_field.alternatives,
+        ]
+        if len(represented) != len(self.assessments) or any(
+            item not in self.assessments for item in represented
+        ):
+            raise ValueError("verified selection must retain every candidate assessment")
+        return self
+
+
+class DocumentVerificationResult(ContractModel):
+    """Complete Box 6 evidence decision for one document."""
+
+    document_role: DocumentRole
+    source_filename: str = Field(min_length=1)
+    fields: list[FieldVerificationResult]
+    diagnostics: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def validate_fields(self) -> Self:
+        """Require exactly one result for each of the seven fields."""
+        field_names = [item.field for item in self.fields]
+        if len(field_names) != len(set(field_names)):
+            raise ValueError("verification result fields must be unique")
+        if set(field_names) != ALL_COMPARISON_FIELDS:
+            raise ValueError("verification result must cover all required fields")
+        for result in self.fields:
+            for assessment in result.assessments:
+                candidate = assessment.candidate
+                if candidate.document_role != self.document_role:
+                    raise ValueError("candidate role does not match the verified document")
+                if any(
+                    evidence.source_filename != self.source_filename
+                    for evidence in candidate.evidence
+                ):
+                    raise ValueError("candidate evidence does not match the verified document")
+        return self
+
+    def verified_fields(self) -> list[VerifiedField]:
+        """Return fields that passed evidence and consistency verification."""
+        return [item.verified_field for item in self.fields if item.verified_field is not None]
+
+    def unresolved_fields(self) -> list[ComparisonField]:
+        """Return fields that require missing-value or uncertainty handling."""
+        return [item.field for item in self.fields if item.verified_field is None]
 
 
 class NormalizationRule(StrEnum):

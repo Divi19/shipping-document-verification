@@ -22,6 +22,8 @@ from app.models.extraction import (
 from app.models.health import HealthResponse
 from app.models.verification import (
     CandidateAssessment,
+    DocumentVerificationResult,
+    FieldVerificationResult,
     NormalizationRule,
     NormalizationStep,
     NormalizedDocument,
@@ -43,10 +45,12 @@ __all__ = [
     "ComparisonField",
     "DocumentFieldCandidates",
     "DocumentRole",
+    "DocumentVerificationResult",
     "EmailAttachment",
     "EmailCategory",
     "EvidenceReference",
     "ExtractionMethod",
+    "FieldVerificationResult",
     "FieldCandidate",
     "HealthResponse",
     "NormalizationRule",
